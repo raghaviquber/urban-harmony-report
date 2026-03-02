@@ -31,26 +31,29 @@ const Index = () => {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0">
           <img src={heroImage} alt="Modern city infrastructure" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-primary/90 to-primary/70" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/95 via-primary/85 to-accent/40" />
         </div>
-        <div className="container relative py-24 md:py-36">
+        <div className="container relative py-28 md:py-40">
           <div className="max-w-2xl animate-fade-in-up">
+            <span className="mb-4 inline-block rounded-full bg-accent/20 px-4 py-1.5 text-sm font-semibold text-primary-foreground backdrop-blur-sm">
+              🏛️ Smart India Hackathon 2026
+            </span>
             <h1 className="text-4xl font-extrabold tracking-tight text-primary-foreground md:text-5xl lg:text-6xl">
               Civic Issue Reporting System
             </h1>
-            <p className="mt-4 text-lg text-primary-foreground/85 md:text-xl">
+            <p className="mt-5 text-lg text-primary-foreground/85 md:text-xl">
               Report civic problems in your area and help improve your community.
             </p>
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mt-10 flex flex-wrap gap-4">
               <Link
                 to="/report"
-                className="inline-flex items-center gap-2 rounded-lg bg-card px-6 py-3 font-semibold text-primary shadow-card transition hover:shadow-card-hover"
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-7 py-3.5 font-semibold text-accent-foreground shadow-lg transition-all duration-200 hover:shadow-xl hover:brightness-110"
               >
                 Report Issue <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 to="/dashboard"
-                className="inline-flex items-center gap-2 rounded-lg border border-primary-foreground/30 px-6 py-3 font-semibold text-primary-foreground transition hover:bg-primary-foreground/10"
+                className="inline-flex items-center gap-2 rounded-xl border border-primary-foreground/30 px-7 py-3.5 font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary-foreground/10"
               >
                 <BarChart3 className="h-4 w-4" /> View Dashboard
               </Link>
@@ -70,10 +73,10 @@ const Index = () => {
             {steps.map((step, i) => (
               <div
                 key={step.title}
-                className="rounded-xl bg-card p-8 shadow-card transition hover:shadow-card-hover"
+                className="group rounded-xl bg-card p-8 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover"
                 style={{ animationDelay: `${i * 0.15}s` }}
               >
-                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-accent">
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15 transition-colors duration-300 group-hover:bg-accent/25">
                   <step.icon className="h-6 w-6 text-accent-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground">{step.title}</h3>

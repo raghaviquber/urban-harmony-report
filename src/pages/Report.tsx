@@ -51,7 +51,7 @@ const ReportPage = () => {
       location: form.location,
       imageUrl: file ? URL.createObjectURL(file) : undefined,
     });
-    toast.success("Issue reported successfully!");
+    toast.success("Issue reported successfully! Redirecting to dashboard...");
     setTimeout(() => navigate("/dashboard"), 1200);
   };
 
@@ -60,7 +60,7 @@ const ReportPage = () => {
       <Navbar />
       <main className="flex flex-1 items-start justify-center py-12">
         <div className="w-full max-w-xl">
-          <div className="rounded-xl bg-card p-8 shadow-card">
+          <div className="rounded-xl bg-card p-8 shadow-card transition-shadow duration-300 hover:shadow-card-hover">
             <h1 className="text-2xl font-bold text-foreground">Report an Issue</h1>
             <p className="mt-1 text-sm text-muted-foreground">Help us identify and fix civic problems.</p>
 
@@ -71,7 +71,7 @@ const ReportPage = () => {
                   type="text"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring/20"
                   placeholder="e.g. Pothole on Main Street"
                 />
               </div>
@@ -82,7 +82,7 @@ const ReportPage = () => {
                   rows={4}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring/20"
                   placeholder="Provide details about the issue..."
                 />
               </div>
@@ -92,7 +92,7 @@ const ReportPage = () => {
                 <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-ring/20"
+                  className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring/20"
                 >
                   <option value="">Select category</option>
                   {categories.map((c) => (
@@ -103,7 +103,7 @@ const ReportPage = () => {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Upload Image</label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed bg-background px-4 py-3 text-sm text-muted-foreground transition hover:border-primary">
+                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed bg-background px-4 py-3 text-sm text-muted-foreground transition-all duration-200 hover:border-primary hover:bg-muted/50">
                   <Upload className="h-4 w-4" />
                   {file ? file.name : "Choose a file..."}
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
@@ -112,7 +112,7 @@ const ReportPage = () => {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Location</label>
-                <div className="flex items-center gap-2 rounded-lg border bg-background px-4 py-2.5 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm text-muted-foreground">
                   <MapPin className="h-4 w-4 shrink-0" />
                   {detectingLocation ? "Detecting location..." : form.location}
                 </div>
@@ -120,7 +120,7 @@ const ReportPage = () => {
 
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 font-semibold text-primary-foreground transition hover:opacity-90"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground shadow-md transition-all duration-200 hover:shadow-lg hover:brightness-110"
               >
                 <Send className="h-4 w-4" /> Submit Report
               </button>

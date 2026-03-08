@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Tables } from "@/integrations/supabase/types";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import IssueMap from "@/components/IssueMap";
 
 type Issue = Tables<"issues">;
 type SortKey = "newest" | "oldest" | "most-voted";

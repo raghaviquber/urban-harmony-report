@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import IssueMap from "@/components/IssueMap";
 
 type Issue = Tables<"issues">;
 

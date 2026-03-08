@@ -1,0 +1,184 @@
+import { useState, useEffect, useCallback } from "react";
+import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, TrendingUp, Search } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+
+type Issue = Tables<"issues">;
+
+const statusConfig: Record<string, { bg: string; text: string; icon: typeof Clock }> = {
+  Pending: { bg: "bg-status-pending-bg", text: "text-status-pending", icon: Clock },
+  "In Progress": { bg: "bg-status-progress-bg", text: "text-status-progress", icon: Wrench },
+  Resolved: { bg: "bg-status-resolved-bg", text: "text-status-resolved", icon: CheckCircle2 },
+};
+
+const AuthorityDashboard = () => {
+  const { user } = useAuth();
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [resolveTarget, setResolveTarget] = useState<string | null>(null);
+  const [resolveAction, setResolveAction] = useState<"In Progress" | "Resolved">("Resolved");
+
+  const fetchIssues = useCallback(async () => {
+    if (!user) return;
+    // Authority sees issues assigned to them OR all unassigned
+    const { data } = await supabase.from("issues").select("*")
+      .or(`assigned_authority_id.eq.${user.id},assigned_authority_id.is.null`)
+      .order("created_at", { ascending: false });
+    setIssues(data ?? []);
+  }, [user]);
+
+  useEffect(() => { fetchIssues(); }, [fetchIssues]);
+
+  const stats = {
+    total: issues.length,
+    pending: issues.filter((i) => i.status === "Pending").length,
+    inProgress: issues.filter((i) => i.status === "In Progress").length,
+    resolved: issues.filter((i) => i.status === "Resolved").length,
+  };
+  const pct = (n: number) => (stats.total === 0 ? 0 : Math.round((n / stats.total) * 100));
+
+  const confirmAction = async () => {
+    if (!resolveTarget) return;
+    const { error } = await supabase.from("issues").update({ status: resolveAction, assigned_authority_id: user?.id }).eq("id", resolveTarget);
+    if (error) { toast.error("Failed to update status."); }
+    else { toast.success(`Issue marked as ${resolveAction}.`); }
+    setResolveTarget(null);
+    fetchIssues();
+  };
+
+  const filtered = issues.filter((i) => !searchQuery || i.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <Navbar />
+      <main className="flex-1 py-10">
+        <div className="container">
+          <h1 className="text-3xl font-bold text-foreground">Authority Dashboard</h1>
+          <p className="mt-1 text-muted-foreground">Manage and resolve assigned civic issues.</p>
+
+          {/* Stats */}
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Assigned Issues", value: stats.total, color: "bg-primary/10 text-primary" },
+              { label: "Pending", value: stats.pending, color: "bg-status-pending-bg text-status-pending" },
+              { label: "In Progress", value: stats.inProgress, color: "bg-status-progress-bg text-status-progress" },
+              { label: "Resolved", value: stats.resolved, color: "bg-status-resolved-bg text-status-resolved" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl bg-card p-6 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover">
+                <p className="text-sm font-medium text-muted-foreground">{s.label}</p>
+                <p className={`mt-2 inline-flex items-center rounded-xl px-3 py-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Analytics */}
+          <div className="mt-8 rounded-xl bg-card p-6 shadow-card">
+            <div className="flex items-center gap-2 mb-5">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">Resolution Analytics</h2>
+            </div>
+            <div className="space-y-4">
+              {[
+                { label: "Resolved", value: pct(stats.resolved), color: "bg-status-resolved" },
+                { label: "In Progress", value: pct(stats.inProgress), color: "bg-status-progress" },
+                { label: "Pending", value: pct(stats.pending), color: "bg-status-pending" },
+              ].map((bar) => (
+                <div key={bar.label} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">{bar.label}</span>
+                    <span className="text-muted-foreground">{bar.value}%</span>
+                  </div>
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className={`h-full rounded-full transition-all duration-500 ${bar.color}`} style={{ width: `${bar.value}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="mt-8 relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input type="text" placeholder="Search assigned issues..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-xl border bg-card pl-10 pr-4 py-2.5 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-ring/20" />
+          </div>
+
+          {/* Issue List */}
+          <div className="mt-6 space-y-4">
+            {filtered.map((issue) => {
+              const cfg = statusConfig[issue.status] ?? statusConfig.Pending;
+              const StatusIcon = cfg.icon;
+              return (
+                <div key={issue.id} className="rounded-xl bg-card shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover overflow-hidden">
+                  {issue.image_url && (
+                    <div className="h-40 w-full overflow-hidden bg-muted">
+                      <img src={issue.image_url} alt={issue.title} className="h-full w-full object-cover" />
+                    </div>
+                  )}
+                  <div className="p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-foreground">{issue.title}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{issue.description}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1"><Tag className="h-3 w-3" /> {issue.category}</span>
+                          <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {issue.location}</span>
+                          <span className="inline-flex items-center gap-1"><ThumbsUp className="h-3 w-3" /> {issue.votes} votes</span>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+                        <StatusIcon className="h-3.5 w-3.5" /> {issue.status}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
+                      {issue.status === "Pending" && (
+                        <button onClick={() => { setResolveAction("In Progress"); setResolveTarget(issue.id); }}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-status-progress-bg px-3 py-1.5 text-xs font-medium text-status-progress transition-all hover:opacity-80 hover:-translate-y-0.5">
+                          <Wrench className="h-3.5 w-3.5" /> Mark In Progress
+                        </button>
+                      )}
+                      {issue.status !== "Resolved" && (
+                        <button onClick={() => { setResolveAction("Resolved"); setResolveTarget(issue.id); }}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-status-resolved-bg px-3 py-1.5 text-xs font-medium text-status-resolved transition-all hover:opacity-80 hover:-translate-y-0.5">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Mark Resolved
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </main>
+      <Footer />
+
+      <AlertDialog open={!!resolveTarget} onOpenChange={(open) => !open && setResolveTarget(null)}>
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Status Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this issue as <strong>{resolveAction}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAction} className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90">
+              Yes, Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
+export default AuthorityDashboard;

@@ -1,12 +1,14 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { FileText, BarChart3, Home, Menu, X, LogOut, Shield, Wrench, Users } from "lucide-react";
+import { FileText, BarChart3, Home, Menu, X, LogOut, Shield, Wrench, Users, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, role, profile, signOut } = useAuth();
+  const { isDark, toggle: toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = user

@@ -136,7 +136,7 @@ const CitizenDashboard = () => {
     }
     const found = findDuplicates(form.title, form.description, issues);
     if (found.length > 0) {
-      setDuplicates(found);
+      setDuplicates(found as Issue[]);
       setShowDuplicateAlert(true);
     } else {
       doSubmit();

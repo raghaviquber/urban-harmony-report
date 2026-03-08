@@ -42,11 +42,11 @@ export const suggestCategory = (text: string): string | null => {
   return bestScore > 0 ? bestCategory : null;
 };
 
-export const findDuplicates = (
+export const findDuplicates = <T extends { id: string; title: string; description: string; status: string }>(
   newTitle: string,
   newDescription: string,
-  existingIssues: { id: string; title: string; description: string; location: string; status: string; votes: number }[]
-): typeof existingIssues => {
+  existingIssues: T[]
+): T[] => {
   const words = `${newTitle} ${newDescription}`.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
   if (words.length === 0) return [];
 

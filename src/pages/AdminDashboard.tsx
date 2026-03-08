@@ -150,6 +150,14 @@ const AdminDashboard = () => {
             </div>
           </div>
 
+          {/* Map */}
+          {issues.length > 0 && (
+            <div className="mt-8">
+              <h2 className="mb-4 text-xl font-semibold text-foreground">📍 Issue Map</h2>
+              <IssueMap issues={issues.map((i) => ({ id: i.id, title: i.title, location: i.location, status: i.status, category: i.category }))} />
+            </div>
+          )}
+
           {/* Tabs */}
           <div className="mt-8 flex gap-2">
             <button onClick={() => setTab("issues")}

@@ -26,9 +26,9 @@ const Footer = () => (
         </div>
         <div>
           <h4 className="font-semibold text-foreground mb-3">Contact</h4>
-          <p className="text-sm text-muted-foreground">University Project &middot; Year 2026</p>
+          <p className="text-sm text-muted-foreground"><span className="font-medium text-foreground">SRM University AP</span> &middot; Year 2026</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Developed by <span className="font-medium text-foreground">Student Name</span>
+            Developed by <span className="font-medium text-foreground">Manyam Raghavi, K.Sritha, H.V.N Harshitha</span>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">Smart India Hackathon</p>
         </div>

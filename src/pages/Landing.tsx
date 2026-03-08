@@ -67,6 +67,7 @@ const stats = [
 ];
 
 const Landing = () => {
+  const { isDark, toggle: toggleTheme } = useTheme();
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}

@@ -12,9 +12,12 @@ import {
   TrendingUp,
   Award,
   Heart,
+  Moon,
+  Sun,
 } from "lucide-react";
 import heroImage from "@/assets/hero-city.png";
 import Footer from "@/components/Footer";
+import { useTheme } from "@/hooks/useTheme";
 
 const steps = [
   {

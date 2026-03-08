@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import IssueMap from "@/components/IssueMap";
 
 type Issue = Tables<"issues">;
 
@@ -148,6 +149,14 @@ const AdminDashboard = () => {
               ))}
             </div>
           </div>
+
+          {/* Map */}
+          {issues.length > 0 && (
+            <div className="mt-8">
+              <h2 className="mb-4 text-xl font-semibold text-foreground">📍 Issue Map</h2>
+              <IssueMap issues={issues.map((i) => ({ id: i.id, title: i.title, location: i.location, status: i.status, category: i.category }))} />
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="mt-8 flex gap-2">

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Tables } from "@/integrations/supabase/types";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import IssueMap from "@/components/IssueMap";
 
 type Issue = Tables<"issues">;
 type SortKey = "newest" | "oldest" | "most-voted";
@@ -232,6 +233,14 @@ const CitizenDashboard = () => {
               <option value="most-voted">Most Voted</option>
             </select>
           </div>
+
+          {/* Map Visualization */}
+          {filtered.length > 0 && (
+            <div className="mt-8">
+              <h2 className="mb-4 text-xl font-semibold text-foreground">📍 Issue Locations</h2>
+              <IssueMap issues={filtered.map((i) => ({ id: i.id, title: i.title, location: i.location, status: i.status, category: i.category }))} />
+            </div>
+          )}
 
           {/* Issue Feed */}
           <div className="mt-6 space-y-4">

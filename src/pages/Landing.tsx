@@ -12,9 +12,12 @@ import {
   TrendingUp,
   Award,
   Heart,
+  Moon,
+  Sun,
 } from "lucide-react";
 import heroImage from "@/assets/hero-city.png";
 import Footer from "@/components/Footer";
+import { useTheme } from "@/hooks/useTheme";
 
 const steps = [
   {
@@ -64,6 +67,7 @@ const stats = [
 ];
 
 const Landing = () => {
+  const { isDark, toggle: toggleTheme } = useTheme();
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -76,6 +80,9 @@ const Landing = () => {
             CivicReport
           </Link>
           <div className="flex items-center gap-3">
+            <button onClick={toggleTheme} className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Toggle theme">
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
             <Link
               to="/login"
               className="rounded-xl border border-primary px-5 py-2 text-sm font-semibold text-primary transition-all duration-200 hover:bg-primary hover:text-primary-foreground"

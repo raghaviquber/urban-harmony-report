@@ -1,12 +1,14 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { FileText, BarChart3, Home, Menu, X, LogOut, Shield, Wrench, Users } from "lucide-react";
+import { FileText, BarChart3, Home, Menu, X, LogOut, Shield, Wrench, Users, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, role, profile, signOut } = useAuth();
+  const { isDark, toggle: toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = user
@@ -52,12 +54,20 @@ const Navbar = () => {
           })}
           {user && (
             <div className="ml-3 flex items-center gap-3">
+              <button onClick={toggleTheme} className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Toggle theme">
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
               <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold capitalize text-primary">{role}</span>
               <span className="text-sm text-muted-foreground">{profile?.display_name}</span>
               <button onClick={handleSignOut} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                 <LogOut className="h-4 w-4" /> Logout
               </button>
             </div>
+          )}
+          {!user && (
+            <button onClick={toggleTheme} className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title="Toggle theme">
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
           )}
         </div>
 

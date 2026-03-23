@@ -7,7 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 const categories = ["Roads", "Sanitation", "Water", "Electricity", "Others"];
-const FLASK_API_URL = "http://127.0.0.1:5000";
+const FLASK_API_URL = "https://urbanharmony-backend.onrender.com";
 
 const ReportPage = () => {
   const { addIssue } = useIssues();

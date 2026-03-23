@@ -7,6 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 const categories = ["Roads", "Sanitation", "Water", "Electricity", "Others"];
+const FLASK_API_URL = "http://127.0.0.1:5000";
 
 const ReportPage = () => {
   const { addIssue } = useIssues();

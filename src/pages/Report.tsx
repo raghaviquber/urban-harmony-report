@@ -7,6 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 const categories = ["Roads", "Sanitation", "Water", "Electricity", "Others"];
+const FLASK_API_URL = "http://127.0.0.1:5000";
 
 const ReportPage = () => {
   const { addIssue } = useIssues();
@@ -38,12 +39,33 @@ const ReportPage = () => {
     );
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title || !form.description || !form.category) {
       toast.error("Please fill all required fields.");
       return;
     }
+
+    // Submit to local Flask backend
+    try {
+      const res = await fetch(`${FLASK_API_URL}/create-issue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          location: form.location,
+          category: form.category,
+          user_id: 1,
+        }),
+      });
+      const data = await res.json();
+      console.log("Flask response:", data);
+    } catch (err) {
+      console.warn("Flask backend not reachable, saving locally only.", err);
+    }
+
+    // Also save to local state
     addIssue({
       title: form.title,
       description: form.description,

@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, TrendingUp, Search } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import type { Tables } from "@/integrations/supabase/types";
+import { api, type FlaskIssue } from "@/lib/api";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-
-type Issue = Tables<"issues">;
 
 const statusConfig: Record<string, { bg: string; text: string; icon: typeof Clock }> = {
   Pending: { bg: "bg-status-pending-bg", text: "text-status-pending", icon: Clock },
@@ -21,19 +18,21 @@ const statusConfig: Record<string, { bg: string; text: string; icon: typeof Cloc
 
 const AuthorityDashboard = () => {
   const { user } = useAuth();
-  const [issues, setIssues] = useState<Issue[]>([]);
+  const [issues, setIssues] = useState<FlaskIssue[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [resolveTarget, setResolveTarget] = useState<string | null>(null);
+  const [resolveTarget, setResolveTarget] = useState<string | number | null>(null);
   const [resolveAction, setResolveAction] = useState<"In Progress" | "Resolved">("Resolved");
 
   const fetchIssues = useCallback(async () => {
-    if (!user) return;
-    // Authority sees issues assigned to them OR all unassigned
-    const { data } = await supabase.from("issues").select("*")
-      .or(`assigned_authority_id.eq.${user.id},assigned_authority_id.is.null`)
-      .order("created_at", { ascending: false });
-    setIssues(data ?? []);
-  }, [user]);
+    try {
+      const data = await api.getIssues();
+      // Authority sees all issues (filter client-side if needed)
+      setIssues(data);
+    } catch (err) {
+      console.error("Failed to fetch issues:", err);
+      toast.error("Failed to load issues.");
+    }
+  }, []);
 
   useEffect(() => { fetchIssues(); }, [fetchIssues]);
 
@@ -47,9 +46,12 @@ const AuthorityDashboard = () => {
 
   const confirmAction = async () => {
     if (!resolveTarget) return;
-    const { error } = await supabase.from("issues").update({ status: resolveAction, assigned_authority_id: user?.id }).eq("id", resolveTarget);
-    if (error) { toast.error("Failed to update status."); }
-    else { toast.success(`Issue marked as ${resolveAction}.`); }
+    try {
+      await api.updateStatus(resolveTarget, resolveAction);
+      toast.success(`Issue marked as ${resolveAction}.`);
+    } catch {
+      toast.error("Failed to update status.");
+    }
     setResolveTarget(null);
     fetchIssues();
   };

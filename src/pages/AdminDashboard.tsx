@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Clock, Wrench, CheckCircle2, MapPin, Tag, TrendingUp, Search, Trash2, UserPlus, Shield, ThumbsUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import { api, type FlaskIssue } from "@/lib/api";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -10,8 +10,6 @@ import {
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import IssueMap from "@/components/IssueMap";
-
-type Issue = Tables<"issues">;
 
 const statusConfig: Record<string, { bg: string; text: string; icon: typeof Clock }> = {
   Pending: { bg: "bg-status-pending-bg", text: "text-status-pending", icon: Clock },
@@ -22,11 +20,11 @@ const statusConfig: Record<string, { bg: string; text: string; icon: typeof Cloc
 const departments = ["Roads Department", "Sanitation Department", "Water Department", "Electricity Department", "General"];
 
 const AdminDashboard = () => {
-  const [issues, setIssues] = useState<Issue[]>([]);
+  const [issues, setIssues] = useState<FlaskIssue[]>([]);
   const [authorities, setAuthorities] = useState<{ user_id: string; name: string; department: string; email: string }[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | number | null>(null);
   const [tab, setTab] = useState<"issues" | "authorities">("issues");
 
   // Authority form
@@ -34,10 +32,16 @@ const AdminDashboard = () => {
   const [authDept, setAuthDept] = useState(departments[0]);
 
   const fetchIssues = useCallback(async () => {
-    const { data } = await supabase.from("issues").select("*").order("created_at", { ascending: false });
-    setIssues(data ?? []);
+    try {
+      const data = await api.getIssues();
+      setIssues(data);
+    } catch (err) {
+      console.error("Failed to fetch issues:", err);
+      toast.error("Failed to load issues.");
+    }
   }, []);
 
+  // Authority management still uses Supabase (user_roles / profiles tables)
   const fetchAuthorities = useCallback(async () => {
     const { data: roles } = await supabase.from("user_roles").select("user_id, department").eq("role", "authority");
     if (!roles?.length) { setAuthorities([]); return; }
@@ -59,30 +63,41 @@ const AdminDashboard = () => {
   };
   const pct = (n: number) => (stats.total === 0 ? 0 : Math.round((n / stats.total) * 100));
 
-  const handleAssignAuthority = async (issueId: string, authorityId: string) => {
+  const handleAssignAuthority = async (issueId: string | number, authorityId: string) => {
     const auth = authorities.find((a) => a.user_id === authorityId);
-    const { error } = await supabase.from("issues").update({
-      assigned_authority_id: authorityId,
-      assigned_department: auth?.department ?? null,
-    }).eq("id", issueId);
-    if (error) toast.error("Failed to assign."); else { toast.success("Authority assigned!"); fetchIssues(); }
+    try {
+      await api.assignAuthority(issueId, authorityId, auth?.department);
+      toast.success("Authority assigned!");
+      fetchIssues();
+    } catch {
+      toast.error("Failed to assign.");
+    }
   };
 
-  const handleStatusChange = async (issueId: string, status: string) => {
-    const { error } = await supabase.from("issues").update({ status }).eq("id", issueId);
-    if (error) toast.error("Failed to update."); else { toast.success("Status updated!"); fetchIssues(); }
+  const handleStatusChange = async (issueId: string | number, status: string) => {
+    try {
+      await api.updateStatus(issueId, status);
+      toast.success("Status updated!");
+      fetchIssues();
+    } catch {
+      toast.error("Failed to update.");
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    const { error } = await supabase.from("issues").delete().eq("id", deleteTarget);
-    if (error) toast.error("Failed to delete."); else { toast.success("Issue deleted!"); fetchIssues(); }
+    try {
+      await api.deleteIssue(deleteTarget);
+      toast.success("Issue deleted!");
+      fetchIssues();
+    } catch {
+      toast.error("Failed to delete.");
+    }
     setDeleteTarget(null);
   };
 
   const handleAddAuthority = async () => {
     if (!authEmail) { toast.error("Enter an email."); return; }
-    // Find user by email in profiles
     const { data: profile } = await supabase.from("profiles").select("user_id").eq("email", authEmail).limit(1).single();
     if (!profile) { toast.error("No user found with that email. They must register first."); return; }
     const { error } = await supabase.from("user_roles").insert({ user_id: profile.user_id, role: "authority" as const, department: authDept });
@@ -154,7 +169,7 @@ const AdminDashboard = () => {
           {issues.length > 0 && (
             <div className="mt-8">
               <h2 className="mb-4 text-xl font-semibold text-foreground">📍 Issue Map</h2>
-              <IssueMap issues={issues.map((i) => ({ id: i.id, title: i.title, location: i.location, status: i.status, category: i.category }))} />
+              <IssueMap issues={issues.map((i) => ({ id: String(i.id), title: i.title, location: i.location, status: i.status, category: i.category }))} />
             </div>
           )}
 
@@ -172,7 +187,6 @@ const AdminDashboard = () => {
 
           {tab === "issues" && (
             <>
-              {/* Filters */}
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-[200px]">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -188,7 +202,6 @@ const AdminDashboard = () => {
                 </select>
               </div>
 
-              {/* Issue List */}
               <div className="mt-6 space-y-4">
                 {filtered.map((issue) => {
                   const cfg = statusConfig[issue.status] ?? statusConfig.Pending;
@@ -210,7 +223,6 @@ const AdminDashboard = () => {
                         </span>
                       </div>
                       <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
-                        {/* Assign authority */}
                         <select
                           value={issue.assigned_authority_id ?? ""}
                           onChange={(e) => handleAssignAuthority(issue.id, e.target.value)}
@@ -221,7 +233,6 @@ const AdminDashboard = () => {
                             <option key={a.user_id} value={a.user_id}>{a.name} ({a.department})</option>
                           ))}
                         </select>
-                        {/* Status change */}
                         <select
                           value={issue.status}
                           onChange={(e) => handleStatusChange(issue.id, e.target.value)}
@@ -245,7 +256,6 @@ const AdminDashboard = () => {
 
           {tab === "authorities" && (
             <div className="mt-6 space-y-6">
-              {/* Add authority */}
               <div className="rounded-xl bg-card p-6 shadow-card">
                 <h2 className="text-lg font-semibold text-foreground mb-4">Add Authority Account</h2>
                 <p className="text-sm text-muted-foreground mb-4">The user must be registered first. Enter their email to grant authority role.</p>
@@ -263,7 +273,6 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Authority List */}
               <div className="rounded-xl bg-card p-6 shadow-card">
                 <h2 className="text-lg font-semibold text-foreground mb-4">Current Authorities</h2>
                 {authorities.length === 0 ? (

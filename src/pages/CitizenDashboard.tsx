@@ -1,108 +1,212 @@
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useState, useEffect, useCallback } from "react";
+import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, Search, Send, Upload, Image, Sparkles, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { api, type FlaskIssue } from "@/lib/api";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import IssueMap from "@/components/IssueMap";
+import { suggestCategory, findDuplicates } from "@/lib/categorizer";
+import {
+AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-interface Issue {
-  id: string | number;
-  title: string;
-  description: string;
-  location: string;
-  category: string;
-  status: string;
-  upvotes: number;
-  created_at?: string;
-}
+type SortKey = "newest" | "oldest" | "most-voted";
+
+const categories = ["All", "Roads", "Sanitation", "Water", "Electricity", "Others"];
+const statusOptions = ["All", "Pending", "In Progress", "Resolved"];
+
+const statusConfig: Record<string, { bg: string; text: string; icon: typeof Clock }> = {
+Pending: { bg: "bg-status-pending-bg", text: "text-status-pending", icon: Clock },
+"In Progress": { bg: "bg-status-progress-bg", text: "text-status-progress", icon: Wrench },
+Resolved: { bg: "bg-status-resolved-bg", text: "text-status-resolved", icon: CheckCircle2 },
+};
 
 const CitizenDashboard = () => {
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sortKey, setSortKey] = useState("newest");
+const { user } = useAuth();
 
-  // 🔥 FETCH ISSUES FROM BACKEND
-  useEffect(() => {
-    fetchIssues();
-  }, []);
+const [issues, setIssues] = useState<FlaskIssue[]>([]);
+const [votedIds, setVotedIds] = useState<Set<string | number>>(new Set());
 
-  const fetchIssues = async () => {
-    try {
-      const data = await api.getIssues();
-      setIssues(data);
-    } catch (err) {
-      console.error("Error fetching issues:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+const [searchQuery, setSearchQuery] = useState("");
+const [filterStatus, setFilterStatus] = useState("All");
+const [filterCategory, setFilterCategory] = useState("All");
+const [sortKey, setSortKey] = useState<SortKey>("newest");
 
-  // 🔥 HANDLE UPVOTE
-  const handleUpvote = async (id: string | number) => {
-    try {
-      await api.upvote(id, 1); // dummy user_id
-      fetchIssues(); // refresh after upvote
-    } catch (err) {
-      console.error("Upvote failed:", err);
-    }
-  };
+const [showForm, setShowForm] = useState(false);
+const [form, setForm] = useState({ title: "", description: "", category: "", location: "" });
 
-  // 🔥 SORTING LOGIC
-  const sortedIssues = [...issues].sort((a, b) => {
-    if (sortKey === "most-voted") return (b.upvotes || 0) - (a.upvotes || 0);
-    if (sortKey === "oldest")
-      return new Date(a.created_at || "").getTime() - new Date(b.created_at || "").getTime();
-    return new Date(b.created_at || "").getTime() - new Date(a.created_at || "").getTime();
-  });
+const [file, setFile] = useState<File | null>(null);
+const [submitting, setSubmitting] = useState(false);
 
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Citizen Dashboard</h1>
+const [detectingLocation, setDetectingLocation] = useState(false);
+const [suggestedCategory, setSuggestedCategory] = useState<string | null>(null);
 
-      {/* SORT DROPDOWN */}
-      <select
-        className="mb-4 p-2 border rounded"
-        value={sortKey}
-        onChange={(e) => setSortKey(e.target.value)}
-      >
-        <option value="newest">Newest</option>
-        <option value="oldest">Oldest</option>
-        <option value="most-voted">Most Voted</option>
-      </select>
+const [duplicates, setDuplicates] = useState<FlaskIssue[]>([]);
+const [showDuplicateAlert, setShowDuplicateAlert] = useState(false);
 
-      {/* LOADING */}
-      {loading && <p>Loading issues...</p>}
+const [activeTab, setActiveTab] = useState<"feed">("feed");
 
-      {/* ISSUE LIST */}
-      {!loading && sortedIssues.length === 0 && (
-        <p>No issues found. Be the first to report 🚀</p>
+// ✅ FETCH ISSUES
+const fetchIssues = useCallback(async () => {
+try {
+const data = await api.getIssues();
+setIssues(data);
+} catch (err) {
+console.error(err);
+toast.error("Failed to load issues");
+}
+}, []);
+
+useEffect(() => {
+fetchIssues();
+}, [fetchIssues]);
+
+// 📍 LOCATION AUTO
+useEffect(() => {
+if (showForm && !form.location) {
+setDetectingLocation(true);
+navigator.geolocation?.getCurrentPosition(
+(pos) => {
+setForm((f) => ({
+...f,
+location: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`,
+}));
+setDetectingLocation(false);
+},
+() => {
+setForm((f) => ({ ...f, location: "Location unavailable" }));
+setDetectingLocation(false);
+}
+);
+}
+}, [showForm]);
+
+// 🤖 CATEGORY SUGGESTION
+useEffect(() => {
+const text = `${form.title} ${form.description}`;
+if (text.length > 5) {
+setSuggestedCategory(suggestCategory(text));
+} else {
+setSuggestedCategory(null);
+}
+}, [form]);
+
+// 🔁 SUBMIT
+const doSubmit = async () => {
+setSubmitting(true);
+try {
+await api.createIssue({
+title: form.title,
+description: form.description,
+category: form.category,
+location: form.location,
+user_id: user?.id ?? 1,
+});
+
+```
+  toast.success("Issue submitted!");
+  setForm({ title: "", description: "", category: "", location: "" });
+  setShowForm(false);
+  fetchIssues();
+} catch {
+  toast.error("Submit failed");
+}
+setSubmitting(false);
+```
+
+};
+
+const checkDuplicatesAndSubmit = (e: any) => {
+e.preventDefault();
+const found = findDuplicates(form.title, form.description, issues as any);
+if (found.length) {
+setDuplicates(found);
+setShowDuplicateAlert(true);
+} else {
+doSubmit();
+}
+};
+
+// 👍 UPVOTE
+const handleUpvote = async (id: any) => {
+await api.upvote(id, user?.id ?? 1);
+fetchIssues();
+};
+
+// 🔍 FILTER + SORT
+const filtered = issues
+.filter((i) => {
+if (searchQuery && !i.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+if (filterStatus !== "All" && i.status !== filterStatus) return false;
+if (filterCategory !== "All" && i.category !== filterCategory) return false;
+return true;
+})
+.sort((a, b) => {
+if (sortKey === "most-voted") return (b.upvotes || 0) - (a.upvotes || 0);
+if (sortKey === "oldest") return (a.created_at || "").localeCompare(b.created_at || "");
+return (b.created_at || "").localeCompare(a.created_at || "");
+});
+
+return ( <div className="flex min-h-screen flex-col bg-background"> <Navbar />
+
+```
+  <main className="flex-1 py-10">
+    <div className="container">
+      <h1 className="text-3xl font-bold">Citizen Dashboard</h1>
+
+      {/* BUTTON */}
+      <button onClick={() => setShowForm(!showForm)} className="mt-4 bg-accent px-4 py-2 rounded-xl">
+        Report Issue
+      </button>
+
+      {/* FORM */}
+      {showForm && (
+        <form onSubmit={checkDuplicatesAndSubmit} className="mt-4 space-y-3">
+          <input placeholder="Title" value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })} />
+
+          <textarea placeholder="Description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })} />
+
+          <button disabled={submitting}>Submit</button>
+        </form>
       )}
 
-      <div className="space-y-4">
-        {sortedIssues.map((issue) => (
-          <div
-            key={issue.id}
-            className="p-4 border rounded shadow-md bg-white"
-          >
-            <h2 className="text-lg font-semibold">{issue.title}</h2>
-            <p className="text-gray-600">{issue.description}</p>
-            <p className="text-sm text-gray-500">
-              📍 {issue.location} | 🏷 {issue.category}
-            </p>
+      {/* MAP */}
+      {filtered.length > 0 && (
+        <IssueMap issues={filtered.map(i => ({
+          id: String(i.id),
+          title: i.title,
+          location: i.location,
+          status: i.status,
+          category: i.category
+        }))} />
+      )}
 
-            <div className="flex justify-between items-center mt-3">
-              <span className="text-sm font-medium">
-                Status: {issue.status}
-              </span>
+      {/* LIST */}
+      {filtered.length === 0 && <p>No issues found</p>}
 
-              <button
-                onClick={() => handleUpvote(issue.id)}
-                className="bg-orange-500 text-white px-3 py-1 rounded"
-              >
-                👍 ({issue.upvotes || 0})
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+      {filtered.map(issue => (
+        <div key={issue.id} className="p-4 border mt-3">
+          <h3>{issue.title}</h3>
+          <p>{issue.description}</p>
+
+          <button onClick={() => handleUpvote(issue.id)}>
+            👍 {issue.upvotes || 0}
+          </button>
+        </div>
+      ))}
     </div>
-  );
+  </main>
+
+  <Footer />
+</div>
+```
+
+);
 };
 
 export default CitizenDashboard;

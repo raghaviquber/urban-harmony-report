@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, Search, Send, Upload, Image, User, Building2, Mail, Star, Trophy, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import type { Tables } from "@/integrations/supabase/types";
+import { api, type FlaskIssue } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import IssueMap from "@/components/IssueMap";
@@ -13,7 +12,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type Issue = Tables<"issues">;
 type SortKey = "newest" | "oldest" | "most-voted";
 const categories = ["All", "Roads", "Sanitation", "Water", "Electricity", "Others"];
 const statusOptions = ["All", "Pending", "In Progress", "Resolved"];
@@ -34,8 +32,8 @@ const levelBadge: Record<string, string> = {
 
 const CitizenDashboard = () => {
   const { user, profile } = useAuth();
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
+  const [issues, setIssues] = useState<FlaskIssue[]>([]);
+  const [votedIds, setVotedIds] = useState<Set<string | number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterCategory, setFilterCategory] = useState("All");
@@ -45,60 +43,24 @@ const CitizenDashboard = () => {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
-  const [authorities, setAuthorities] = useState<Record<string, { name: string; department: string; email: string }>>({});
   const [suggestedCategory, setSuggestedCategory] = useState<string | null>(null);
-  const [duplicates, setDuplicates] = useState<Issue[]>([]);
+  const [duplicates, setDuplicates] = useState<FlaskIssue[]>([]);
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false);
-  const [civicScore, setCivicScore] = useState(0);
-  const [civicLevel, setCivicLevel] = useState("New Citizen");
-  const [leaderboard, setLeaderboard] = useState<{ display_name: string; civic_score: number; civic_level: string }[]>([]);
   const [activeTab, setActiveTab] = useState<"feed" | "leaderboard">("feed");
 
   const fetchIssues = useCallback(async () => {
-    const { data } = await supabase.from("issues").select("*").order("created_at", { ascending: false });
-    setIssues(data ?? []);
-  }, []);
-
-  const fetchVotes = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase.from("issue_votes").select("issue_id").eq("user_id", user.id);
-    setVotedIds(new Set(data?.map((v) => v.issue_id) ?? []));
-  }, [user]);
-
-  const fetchAuthorities = useCallback(async () => {
-    const { data: authorityRoles } = await supabase.from("user_roles").select("user_id, department").eq("role", "authority");
-    if (!authorityRoles?.length) return;
-    const userIds = authorityRoles.map((r) => r.user_id);
-    const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, email").in("user_id", userIds);
-    const map: Record<string, { name: string; department: string; email: string }> = {};
-    authorityRoles.forEach((r) => {
-      const prof = profiles?.find((p) => p.user_id === r.user_id);
-      map[r.user_id] = { name: prof?.display_name ?? "Authority", department: r.department ?? "General", email: prof?.email ?? "" };
-    });
-    setAuthorities(map);
-  }, []);
-
-  const fetchCivicScore = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase.from("profiles").select("civic_score, civic_level").eq("user_id", user.id).limit(1).single();
-    if (data) {
-      setCivicScore((data as any).civic_score ?? 0);
-      setCivicLevel((data as any).civic_level ?? "New Citizen");
+    try {
+      const data = await api.getIssues();
+      setIssues(data);
+    } catch (err) {
+      console.error("Failed to fetch issues from Flask API:", err);
+      toast.error("Failed to load issues from server.");
     }
-  }, [user]);
-
-  const fetchLeaderboard = useCallback(async () => {
-    const { data } = await supabase.from("profiles").select("display_name, civic_score, civic_level").order("civic_score", { ascending: false }).limit(10);
-    setLeaderboard((data as any) ?? []);
   }, []);
 
   useEffect(() => {
     fetchIssues();
-    fetchVotes();
-    fetchAuthorities();
-    fetchCivicScore();
-    fetchLeaderboard();
-  }, [fetchIssues, fetchVotes, fetchAuthorities, fetchCivicScore, fetchLeaderboard]);
+  }, [fetchIssues]);
 
   useEffect(() => {
     if (showForm && !form.location) {
@@ -130,13 +92,13 @@ const CitizenDashboard = () => {
 
   const checkDuplicatesAndSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.description || !form.category || !user) {
+    if (!form.title || !form.description || !form.category) {
       toast.error("Please fill all required fields.");
       return;
     }
-    const found = findDuplicates(form.title, form.description, issues);
+    const found = findDuplicates(form.title, form.description, issues as any);
     if (found.length > 0) {
-      setDuplicates(found as Issue[]);
+      setDuplicates(found as FlaskIssue[]);
       setShowDuplicateAlert(true);
     } else {
       doSubmit();
@@ -144,54 +106,42 @@ const CitizenDashboard = () => {
   };
 
   const doSubmit = async () => {
-    if (!user) return;
     setSubmitting(true);
-    let imageUrl: string | null = null;
-    if (file) {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from("issue-images").upload(path, file);
-      if (!uploadErr) {
-        const { data: urlData } = supabase.storage.from("issue-images").getPublicUrl(path);
-        imageUrl = urlData.publicUrl;
-      }
-    }
-    const { error } = await supabase.from("issues").insert({
-      user_id: user.id,
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      location: form.location,
-      image_url: imageUrl,
-    });
-    setSubmitting(false);
-    if (error) {
-      toast.error("Failed to submit issue.");
-    } else {
-      toast.success("🎉 Issue reported! +10 Civic Points");
+    try {
+      await api.createIssue({
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        location: form.location,
+        user_id: user?.id ?? 1,
+      });
+      toast.success("🎉 Issue reported successfully!");
       setForm({ title: "", description: "", category: "", location: "" });
       setFile(null);
       setShowForm(false);
       fetchIssues();
-      fetchCivicScore();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to submit issue.");
     }
+    setSubmitting(false);
   };
 
-  const handleUpvote = async (issueId: string) => {
-    if (!user) return;
-    if (votedIds.has(issueId)) {
-      await supabase.from("issue_votes").delete().eq("issue_id", issueId).eq("user_id", user.id);
-      await supabase.rpc("decrement_votes", { p_issue_id: issueId });
-      setVotedIds((prev) => { const n = new Set(prev); n.delete(issueId); return n; });
-      toast.success("Vote removed.");
-    } else {
-      await supabase.from("issue_votes").insert({ issue_id: issueId, user_id: user.id });
-      await supabase.rpc("increment_votes", { p_issue_id: issueId });
-      setVotedIds((prev) => new Set(prev).add(issueId));
-      toast.success("⬆ Upvoted! +2 Civic Points");
-      fetchCivicScore();
+  const handleUpvote = async (issueId: string | number) => {
+    try {
+      await api.upvote(issueId, user?.id ?? 1);
+      if (votedIds.has(issueId)) {
+        setVotedIds((prev) => { const n = new Set(prev); n.delete(issueId); return n; });
+        toast.success("Vote removed.");
+      } else {
+        setVotedIds((prev) => new Set(prev).add(issueId));
+        toast.success("⬆ Upvoted!");
+      }
+      fetchIssues();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to upvote.");
     }
-    fetchIssues();
   };
 
   const filtered = issues
@@ -203,35 +153,29 @@ const CitizenDashboard = () => {
     })
     .sort((a, b) => {
       if (sortKey === "most-voted") return b.votes - a.votes;
-      if (sortKey === "oldest") return a.created_at.localeCompare(b.created_at);
-      return b.created_at.localeCompare(a.created_at);
+      if (sortKey === "oldest") return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+      return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     });
+
+  const stats = {
+    total: issues.length,
+    pending: issues.filter((i) => i.status === "Pending").length,
+    inProgress: issues.filter((i) => i.status === "In Progress").length,
+    resolved: issues.filter((i) => i.status === "Resolved").length,
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar />
       <main className="flex-1 py-10">
         <div className="container">
-          {/* Header + Civic Score */}
+          {/* Header */}
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-foreground">Citizen Dashboard</h1>
               <p className="mt-1 text-muted-foreground">Report issues and track community progress.</p>
             </div>
             <div className="flex items-center gap-4">
-              {/* Civic Score Card */}
-              <div className="flex items-center gap-3 rounded-xl bg-card px-5 py-3 shadow-card">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20">
-                  <Star className="h-5 w-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Civic Score</p>
-                  <p className="text-lg font-bold text-foreground">{civicScore}</p>
-                </div>
-                <span className={`ml-2 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${levelBadge[civicLevel] ?? levelBadge["New Citizen"]}`}>
-                  {civicLevel}
-                </span>
-              </div>
               <button
                 onClick={() => setShowForm(!showForm)}
                 className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow transition-all duration-200 hover:brightness-110"
@@ -258,13 +202,9 @@ const CitizenDashboard = () => {
                     <option value="">Select category</option>
                     {categories.filter((c) => c !== "All").map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
-                  {/* AI Suggestion */}
                   {suggestedCategory && suggestedCategory !== form.category && (
-                    <button
-                      type="button"
-                      onClick={() => setForm({ ...form, category: suggestedCategory })}
-                      className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-all hover:bg-primary/20"
-                    >
+                    <button type="button" onClick={() => setForm({ ...form, category: suggestedCategory })}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-all hover:bg-primary/20">
                       <Sparkles className="h-3 w-3" /> AI suggests: <span className="font-bold">{suggestedCategory}</span> — click to apply
                     </button>
                   )}
@@ -297,50 +237,13 @@ const CitizenDashboard = () => {
             </div>
           )}
 
-          {/* Tabs: Feed / Leaderboard */}
+          {/* Tabs */}
           <div className="mt-8 flex gap-2">
             <button onClick={() => setActiveTab("feed")}
               className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${activeTab === "feed" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
               🏠 Issue Feed
             </button>
-            <button onClick={() => setActiveTab("leaderboard")}
-              className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${activeTab === "leaderboard" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
-              <Trophy className="mr-1.5 inline h-4 w-4" /> Leaderboard
-            </button>
           </div>
-
-          {activeTab === "leaderboard" && (
-            <div className="mt-6 rounded-xl bg-card p-6 shadow-card">
-              <h2 className="text-xl font-semibold text-foreground mb-6">🏆 Top Civic Contributors</h2>
-              <div className="space-y-3">
-                {leaderboard.map((entry, i) => (
-                  <div key={i} className={`flex items-center justify-between rounded-xl p-4 transition-all ${i < 3 ? "bg-accent/10" : "bg-muted/30"}`}>
-                    <div className="flex items-center gap-4">
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                        i === 0 ? "bg-accent text-accent-foreground" :
-                        i === 1 ? "bg-muted-foreground/20 text-foreground" :
-                        i === 2 ? "bg-status-pending-bg text-status-pending" :
-                        "bg-muted text-muted-foreground"
-                      }`}>
-                        {i + 1}
-                      </span>
-                      <div>
-                        <p className="font-semibold text-foreground">{entry.display_name}</p>
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${levelBadge[entry.civic_level] ?? levelBadge["New Citizen"]}`}>
-                          {entry.civic_level}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Star className="h-4 w-4 text-accent" />
-                      <span className="text-lg font-bold text-foreground">{entry.civic_score}</span>
-                    </div>
-                  </div>
-                ))}
-                {leaderboard.length === 0 && <p className="text-center text-muted-foreground py-8">No contributors yet. Be the first!</p>}
-              </div>
-            </div>
-          )}
 
           {activeTab === "feed" && (
             <>
@@ -371,7 +274,7 @@ const CitizenDashboard = () => {
               {filtered.length > 0 && (
                 <div className="mt-8">
                   <h2 className="mb-4 text-xl font-semibold text-foreground">📍 Issue Locations</h2>
-                  <IssueMap issues={filtered.map((i) => ({ id: i.id, title: i.title, location: i.location, status: i.status, category: i.category }))} />
+                  <IssueMap issues={filtered.map((i) => ({ id: String(i.id), title: i.title, location: i.location, status: i.status, category: i.category }))} />
                 </div>
               )}
 
@@ -386,7 +289,6 @@ const CitizenDashboard = () => {
                 {filtered.map((issue) => {
                   const cfg = statusConfig[issue.status] ?? statusConfig.Pending;
                   const StatusIcon = cfg.icon;
-                  const authority = issue.assigned_authority_id ? authorities[issue.assigned_authority_id] : null;
                   const voted = votedIds.has(issue.id);
                   return (
                     <div key={issue.id} className="rounded-xl bg-card shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover overflow-hidden">
@@ -403,24 +305,15 @@ const CitizenDashboard = () => {
                             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                               <span className="inline-flex items-center gap-1"><Tag className="h-3 w-3" /> {issue.category}</span>
                               <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {issue.location}</span>
-                              <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(issue.created_at).toLocaleDateString()}</span>
+                              {issue.created_at && (
+                                <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(issue.created_at).toLocaleDateString()}</span>
+                              )}
                             </div>
                           </div>
                           <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
                             <StatusIcon className="h-3.5 w-3.5" /> {issue.status}
                           </span>
                         </div>
-
-                        {authority && (
-                          <div className="mt-4 rounded-lg bg-muted/50 p-3">
-                            <p className="text-xs font-semibold text-muted-foreground mb-1">Assigned to:</p>
-                            <div className="flex flex-wrap items-center gap-4 text-xs text-foreground">
-                              <span className="inline-flex items-center gap-1"><User className="h-3 w-3" /> {authority.name}</span>
-                              <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" /> {authority.department}</span>
-                              <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {authority.email}</span>
-                            </div>
-                          </div>
-                        )}
 
                         <div className="mt-4 flex items-center gap-2 border-t pt-4">
                           <button onClick={() => handleUpvote(issue.id)}

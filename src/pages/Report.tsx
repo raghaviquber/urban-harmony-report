@@ -2,15 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Upload, Send } from "lucide-react";
 import { toast } from "sonner";
-import { useIssues } from "@/store/issueStore";
+import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 const categories = ["Roads", "Sanitation", "Water", "Electricity", "Others"];
-const FLASK_API_URL = "https://urbanharmony-backend.onrender.com";
 
 const ReportPage = () => {
-  const { addIssue } = useIssues();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     title: "",
@@ -20,6 +20,7 @@ const ReportPage = () => {
   });
   const [file, setFile] = useState<File | null>(null);
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setDetectingLocation(true);
@@ -46,35 +47,22 @@ const ReportPage = () => {
       return;
     }
 
-    // Submit to local Flask backend
+    setSubmitting(true);
     try {
-      const res = await fetch(`${FLASK_API_URL}/create-issue`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description,
-          location: form.location,
-          category: form.category,
-          user_id: 1,
-        }),
+      await api.createIssue({
+        title: form.title,
+        description: form.description,
+        location: form.location,
+        category: form.category,
+        user_id: user?.id ?? 1,
       });
-      const data = await res.json();
-      console.log("Flask response:", data);
+      toast.success("Issue reported successfully! Redirecting to dashboard...");
+      setTimeout(() => navigate("/citizen"), 1200);
     } catch (err) {
-      console.warn("Flask backend not reachable, saving locally only.", err);
+      console.error("Failed to submit issue:", err);
+      toast.error("Failed to submit issue. Please try again.");
     }
-
-    // Also save to local state
-    addIssue({
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      location: form.location,
-      imageUrl: file ? URL.createObjectURL(file) : undefined,
-    });
-    toast.success("Issue reported successfully! Redirecting to dashboard...");
-    setTimeout(() => navigate("/dashboard"), 1200);
+    setSubmitting(false);
   };
 
   return (
@@ -89,37 +77,24 @@ const ReportPage = () => {
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Issue Title *</label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
                   className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring/20"
-                  placeholder="e.g. Pothole on Main Street"
-                />
+                  placeholder="e.g. Pothole on Main Street" />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Description *</label>
-                <textarea
-                  rows={4}
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                <textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring/20"
-                  placeholder="Provide details about the issue..."
-                />
+                  placeholder="Provide details about the issue..." />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Category *</label>
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring/20"
-                >
+                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring/20">
                   <option value="">Select category</option>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
+                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
 
@@ -140,11 +115,9 @@ const ReportPage = () => {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground shadow-md transition-all duration-200 hover:shadow-lg hover:brightness-110"
-              >
-                <Send className="h-4 w-4" /> Submit Report
+              <button type="submit" disabled={submitting}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground shadow-md transition-all duration-200 hover:shadow-lg hover:brightness-110 disabled:opacity-50">
+                <Send className="h-4 w-4" /> {submitting ? "Submitting..." : "Submit Report"}
               </button>
             </form>
           </div>

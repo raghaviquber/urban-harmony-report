@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { Clock, Wrench, CheckCircle2, MapPin, Tag, TrendingUp, Search, Trash2, UserPlus, Shield, ThumbsUp } from "lucide-react";
+import {
+  Clock, Wrench, CheckCircle2, MapPin, Tag, TrendingUp, Search,
+  Trash2, Shield, ThumbsUp, Calendar, ArrowUpDown, Loader2, AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { api, type FlaskIssue } from "@/lib/api";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -17,44 +19,36 @@ const statusConfig: Record<string, { bg: string; text: string; icon: typeof Cloc
   Resolved: { bg: "bg-status-resolved-bg", text: "text-status-resolved", icon: CheckCircle2 },
 };
 
-const departments = ["Roads Department", "Sanitation Department", "Water Department", "Electricity Department", "General"];
+const categories = ["All", "Roads", "Sanitation", "Water", "Electricity", "Others"];
+type SortOption = "newest" | "oldest" | "most_voted";
 
 const AdminDashboard = () => {
   const [issues, setIssues] = useState<FlaskIssue[]>([]);
-  const [authorities, setAuthorities] = useState<{ user_id: string; name: string; department: string; email: string }[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [filterCategory, setFilterCategory] = useState("All");
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [deleteTarget, setDeleteTarget] = useState<string | number | null>(null);
-  const [tab, setTab] = useState<"issues" | "authorities">("issues");
-
-  // Authority form
-  const [authEmail, setAuthEmail] = useState("");
-  const [authDept, setAuthDept] = useState(departments[0]);
 
   const fetchIssues = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await api.getIssues();
       setIssues(data);
     } catch (err) {
       console.error("Failed to fetch issues:", err);
-      toast.error("Failed to load issues.");
+      toast.error("Failed to load issues. Backend may be waking up — try again in a moment.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Authority management still uses Supabase (user_roles / profiles tables)
-  const fetchAuthorities = useCallback(async () => {
-    const { data: roles } = await supabase.from("user_roles").select("user_id, department").eq("role", "authority");
-    if (!roles?.length) { setAuthorities([]); return; }
-    const ids = roles.map((r) => r.user_id);
-    const { data: profiles } = await supabase.from("profiles").select("user_id, display_name, email").in("user_id", ids);
-    setAuthorities(roles.map((r) => {
-      const p = profiles?.find((pr) => pr.user_id === r.user_id);
-      return { user_id: r.user_id, name: p?.display_name ?? "Unknown", department: r.department ?? "General", email: p?.email ?? "" };
-    }));
-  }, []);
+  useEffect(() => {
+    fetchIssues();
+  }, [fetchIssues]);
 
-  useEffect(() => { fetchIssues(); fetchAuthorities(); }, [fetchIssues, fetchAuthorities]);
-
+  // Stats
   const stats = {
     total: issues.length,
     pending: issues.filter((i) => i.status === "Pending").length,
@@ -63,88 +57,98 @@ const AdminDashboard = () => {
   };
   const pct = (n: number) => (stats.total === 0 ? 0 : Math.round((n / stats.total) * 100));
 
-  const handleAssignAuthority = async (issueId: string | number, authorityId: string) => {
-    const auth = authorities.find((a) => a.user_id === authorityId);
+  // Status update with optimistic UI
+  const handleStatusChange = async (issueId: string | number, newStatus: string) => {
+    // Optimistic update
+    setIssues((prev) => prev.map((i) => (i.id === issueId ? { ...i, status: newStatus } : i)));
     try {
-      await api.assignAuthority(issueId, authorityId, auth?.department);
-      toast.success("Authority assigned!");
-      fetchIssues();
+      await api.updateStatus(issueId, newStatus);
+      toast.success(`Issue marked as "${newStatus}"`);
     } catch {
-      toast.error("Failed to assign.");
+      toast.error("Failed to update status.");
+      fetchIssues(); // revert
     }
   };
 
-  const handleStatusChange = async (issueId: string | number, status: string) => {
-    try {
-      await api.updateStatus(issueId, status);
-      toast.success("Status updated!");
-      fetchIssues();
-    } catch {
-      toast.error("Failed to update.");
-    }
-  };
-
+  // Delete
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    setIssues((prev) => prev.filter((i) => i.id !== deleteTarget));
     try {
       await api.deleteIssue(deleteTarget);
-      toast.success("Issue deleted!");
-      fetchIssues();
+      toast.success("Issue deleted successfully.");
     } catch {
-      toast.error("Failed to delete.");
+      toast.error("Failed to delete issue.");
+      fetchIssues();
     }
     setDeleteTarget(null);
   };
 
-  const handleAddAuthority = async () => {
-    if (!authEmail) { toast.error("Enter an email."); return; }
-    const { data: profile } = await supabase.from("profiles").select("user_id").eq("email", authEmail).limit(1).single();
-    if (!profile) { toast.error("No user found with that email. They must register first."); return; }
-    const { error } = await supabase.from("user_roles").insert({ user_id: profile.user_id, role: "authority" as const, department: authDept });
-    if (error) {
-      if (error.code === "23505") toast.error("User already has authority role.");
-      else toast.error("Failed to add authority.");
-    } else {
-      toast.success("Authority role added!");
-      setAuthEmail("");
-      fetchAuthorities();
+  // Assign authority
+  const handleAssign = async (issueId: string | number, authorityInput: string) => {
+    if (!authorityInput) return;
+    try {
+      await api.assignAuthority(issueId, authorityInput);
+      toast.success("Authority assigned!");
+      fetchIssues();
+    } catch {
+      toast.error("Failed to assign authority.");
     }
   };
 
-  const filtered = issues.filter((i) => {
-    if (searchQuery && !i.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (filterStatus !== "All" && i.status !== filterStatus) return false;
-    return true;
-  });
+  // Filtering & sorting
+  const filtered = issues
+    .filter((i) => {
+      if (searchQuery && !i.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (filterStatus !== "All" && i.status !== filterStatus) return false;
+      if (filterCategory !== "All" && i.category !== filterCategory) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "most_voted") return (b.votes || 0) - (a.votes || 0);
+      if (sortBy === "oldest") return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(); // newest
+    });
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar />
       <main className="flex-1 py-10">
         <div className="container">
-          <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="mt-1 text-muted-foreground">Manage the entire civic issue system.</p>
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <Shield className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Admin Portal</h1>
+              <p className="text-sm text-muted-foreground">Manage issues, assign authorities, and track resolution.</p>
+            </div>
+          </div>
 
-          {/* Stats */}
+          {/* Analytics Cards */}
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "Total Complaints", value: stats.total, color: "bg-primary/10 text-primary" },
-              { label: "Pending", value: stats.pending, color: "bg-status-pending-bg text-status-pending" },
-              { label: "In Progress", value: stats.inProgress, color: "bg-status-progress-bg text-status-progress" },
-              { label: "Resolved", value: stats.resolved, color: "bg-status-resolved-bg text-status-resolved" },
+              { label: "Total Issues", value: stats.total, icon: Tag, color: "bg-primary/10 text-primary" },
+              { label: "Pending", value: stats.pending, icon: Clock, color: "bg-status-pending-bg text-status-pending" },
+              { label: "In Progress", value: stats.inProgress, icon: Wrench, color: "bg-status-progress-bg text-status-progress" },
+              { label: "Resolved", value: stats.resolved, icon: CheckCircle2, color: "bg-status-resolved-bg text-status-resolved" },
             ].map((s) => (
               <div key={s.label} className="rounded-xl bg-card p-6 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover">
-                <p className="text-sm font-medium text-muted-foreground">{s.label}</p>
-                <p className={`mt-2 inline-flex items-center rounded-xl px-3 py-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-muted-foreground">{s.label}</p>
+                  <s.icon className={`h-5 w-5 ${s.color.split(" ")[1]}`} />
+                </div>
+                <p className={`mt-2 text-3xl font-bold ${s.color.split(" ")[1]}`}>{s.value}</p>
               </div>
             ))}
           </div>
 
-          {/* Analytics */}
-          <div className="mt-8 rounded-xl bg-card p-6 shadow-card">
-            <div className="flex items-center gap-2 mb-5">
+          {/* Progress Bars */}
+          <div className="mt-6 rounded-xl bg-card p-6 shadow-card">
+            <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">System Analytics</h2>
+              <h2 className="text-lg font-semibold text-foreground">Resolution Progress</h2>
             </div>
             <div className="space-y-4">
               {[
@@ -158,7 +162,7 @@ const AdminDashboard = () => {
                     <span className="text-muted-foreground">{bar.value}%</span>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div className={`h-full rounded-full transition-all duration-500 ${bar.color}`} style={{ width: `${bar.value}%` }} />
+                    <div className={`h-full rounded-full transition-all duration-700 ${bar.color}`} style={{ width: `${bar.value}%` }} />
                   </div>
                 </div>
               ))}
@@ -168,140 +172,141 @@ const AdminDashboard = () => {
           {/* Map */}
           {issues.length > 0 && (
             <div className="mt-8">
-              <h2 className="mb-4 text-xl font-semibold text-foreground">📍 Issue Map</h2>
+              <h2 className="mb-4 flex items-center gap-2 text-xl font-semibold text-foreground">
+                <MapPin className="h-5 w-5 text-primary" /> Issue Map
+              </h2>
               <IssueMap issues={issues.map((i) => ({ id: String(i.id), title: i.title, location: i.location, status: i.status, category: i.category }))} />
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="mt-8 flex gap-2">
-            <button onClick={() => setTab("issues")}
-              className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${tab === "issues" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
-              <Shield className="mr-1.5 inline h-4 w-4" /> Issue Management
-            </button>
-            <button onClick={() => setTab("authorities")}
-              className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${tab === "authorities" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
-              <UserPlus className="mr-1.5 inline h-4 w-4" /> Authority Management
-            </button>
+          {/* Filters */}
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search by title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-xl border bg-card pl-10 pr-4 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20"
+              />
+            </div>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+              className="rounded-xl border bg-card px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary">
+              <option value="All">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Resolved">Resolved</option>
+            </select>
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
+              className="rounded-xl border bg-card px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary">
+              {categories.map((c) => <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>)}
+            </select>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="rounded-xl border bg-card px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="most_voted">Most Voted</option>
+            </select>
           </div>
 
-          {tab === "issues" && (
-            <>
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input type="text" placeholder="Search issues..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-xl border bg-card pl-10 pr-4 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20" />
-                </div>
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-                  className="rounded-xl border bg-card px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary">
-                  <option value="All">All Status</option>
-                  <option value="Pending">Pending</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Resolved">Resolved</option>
-                </select>
-              </div>
+          {/* Issues */}
+          {loading ? (
+            <div className="mt-12 flex flex-col items-center gap-3 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm">Loading issues from backend...</p>
+              <p className="text-xs">Free-tier backend may take 30–60 seconds to wake up.</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="mt-12 flex flex-col items-center gap-2 text-muted-foreground">
+              <AlertTriangle className="h-8 w-8" />
+              <p className="text-sm">No issues found.</p>
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {filtered.map((issue) => {
+                const cfg = statusConfig[issue.status] ?? statusConfig.Pending;
+                const StatusIcon = cfg.icon;
+                const isResolved = issue.status === "Resolved";
+                return (
+                  <div key={issue.id} className="rounded-xl bg-card p-5 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-base font-semibold text-foreground leading-snug">{issue.title}</h3>
+                      <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
+                        <StatusIcon className="h-3.5 w-3.5" /> {issue.status}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">{issue.description}</p>
 
-              <div className="mt-6 space-y-4">
-                {filtered.map((issue) => {
-                  const cfg = statusConfig[issue.status] ?? statusConfig.Pending;
-                  const StatusIcon = cfg.icon;
-                  return (
-                    <div key={issue.id} className="rounded-xl bg-card p-6 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-foreground">{issue.title}</h3>
-                          <p className="mt-1 text-sm text-muted-foreground">{issue.description}</p>
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1"><Tag className="h-3 w-3" /> {issue.category}</span>
-                            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {issue.location}</span>
-                            <span className="inline-flex items-center gap-1"><ThumbsUp className="h-3 w-3" /> {issue.votes} votes</span>
-                          </div>
-                        </div>
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
-                          <StatusIcon className="h-3.5 w-3.5" /> {issue.status}
-                        </span>
-                      </div>
-                      <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
-                        <select
-                          value={issue.assigned_authority_id ?? ""}
-                          onChange={(e) => handleAssignAuthority(issue.id, e.target.value)}
-                          className="rounded-xl border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-primary"
-                        >
-                          <option value="">Assign Authority...</option>
-                          {authorities.map((a) => (
-                            <option key={a.user_id} value={a.user_id}>{a.name} ({a.department})</option>
-                          ))}
-                        </select>
-                        <select
-                          value={issue.status}
-                          onChange={(e) => handleStatusChange(issue.id, e.target.value)}
-                          className="rounded-xl border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-primary"
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Resolved">Resolved</option>
-                        </select>
-                        <button onClick={() => setDeleteTarget(issue.id)}
-                          className="inline-flex items-center gap-1 rounded-xl bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-all hover:bg-destructive/20">
-                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                    {/* Meta */}
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1"><Tag className="h-3 w-3" /> {issue.category}</span>
+                      <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {issue.location}</span>
+                      <span className="inline-flex items-center gap-1"><ThumbsUp className="h-3 w-3" /> {issue.votes} votes</span>
+                      {issue.created_at && (
+                        <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> {new Date(issue.created_at).toLocaleDateString()}</span>
+                      )}
+                    </div>
+
+                    {issue.assigned_authority_id && (
+                      <p className="mt-2 text-xs text-primary font-medium">
+                        Assigned: {issue.assigned_authority_id}
+                      </p>
+                    )}
+
+                    {/* Actions */}
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3">
+                      {!isResolved && issue.status !== "In Progress" && (
+                        <button onClick={() => handleStatusChange(issue.id, "In Progress")}
+                          className="inline-flex items-center gap-1 rounded-xl bg-status-progress-bg px-3 py-1.5 text-xs font-medium text-status-progress transition-all hover:brightness-95">
+                          <Wrench className="h-3.5 w-3.5" /> Mark In Progress
                         </button>
+                      )}
+                      {!isResolved && (
+                        <button onClick={() => handleStatusChange(issue.id, "Resolved")}
+                          className="inline-flex items-center gap-1 rounded-xl bg-status-resolved-bg px-3 py-1.5 text-xs font-medium text-status-resolved transition-all hover:brightness-95">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Mark Resolved
+                        </button>
+                      )}
+                      {isResolved && (
+                        <span className="inline-flex items-center gap-1 rounded-xl bg-status-resolved-bg px-3 py-1.5 text-xs font-semibold text-status-resolved">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Resolved ✅
+                        </span>
+                      )}
+                      <button onClick={() => setDeleteTarget(issue.id)}
+                        className="inline-flex items-center gap-1 rounded-xl bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-all hover:bg-destructive/20">
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                      </button>
+                      <div className="ml-auto">
+                        <input
+                          type="text"
+                          placeholder="Assign (email/dept)"
+                          className="w-36 rounded-xl border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleAssign(issue.id, (e.target as HTMLInputElement).value);
+                              (e.target as HTMLInputElement).value = "";
+                            }
+                          }}
+                        />
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {tab === "authorities" && (
-            <div className="mt-6 space-y-6">
-              <div className="rounded-xl bg-card p-6 shadow-card">
-                <h2 className="text-lg font-semibold text-foreground mb-4">Add Authority Account</h2>
-                <p className="text-sm text-muted-foreground mb-4">The user must be registered first. Enter their email to grant authority role.</p>
-                <div className="flex flex-wrap gap-3">
-                  <input type="email" placeholder="authority@example.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)}
-                    className="flex-1 min-w-[200px] rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20" />
-                  <select value={authDept} onChange={(e) => setAuthDept(e.target.value)}
-                    className="rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary">
-                    {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <button onClick={handleAddAuthority}
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-all hover:brightness-110">
-                    <UserPlus className="h-4 w-4" /> Add Authority
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-card p-6 shadow-card">
-                <h2 className="text-lg font-semibold text-foreground mb-4">Current Authorities</h2>
-                {authorities.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No authorities assigned yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {authorities.map((a) => (
-                      <div key={a.user_id} className="flex items-center justify-between rounded-lg bg-muted/50 p-4">
-                        <div>
-                          <p className="font-medium text-foreground">{a.name}</p>
-                          <p className="text-sm text-muted-foreground">{a.department} &middot; {a.email}</p>
-                        </div>
-                        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Authority</span>
-                      </div>
-                    ))}
                   </div>
-                )}
-              </div>
+                );
+              })}
             </div>
           )}
         </div>
       </main>
       <Footer />
 
+      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Issue</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this issue? This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>Are you sure? This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>

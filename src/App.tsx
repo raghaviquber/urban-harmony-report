@@ -29,6 +29,7 @@ const App = () => (
             <Route path="/citizen" element={<ProtectedRoute allowedRoles={["citizen"]}><CitizenDashboard /></ProtectedRoute>} />
             <Route path="/authority" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityDashboard /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
+
             {/* Legacy routes redirect */}
             <Route path="/report" element={<Navigate to="/citizen" replace />} />
             <Route path="/dashboard" element={<Navigate to="/citizen" replace />} />

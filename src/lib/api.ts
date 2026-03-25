@@ -7,7 +7,10 @@ export interface FlaskIssue {
   category: string;
   location: string;
   status: string;
-  upvotes: number; // ✅ matches backend
+  upvotes: number;
+  votes: number;
+  image_url?: string;
+  assigned_authority_id?: string | null;
   created_at?: string;
 }
 

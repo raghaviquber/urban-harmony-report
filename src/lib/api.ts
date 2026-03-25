@@ -58,11 +58,11 @@ export const api = {
     }));
   },
 
-  // ✅ CREATE ISSUE
   createIssue: (data: {
     title: string;
     description: string;
     location: string;
+    category?: string;
     user_id: number | string;
   }) =>
     apiFetch<{ message: string }>("/create-issue", {
@@ -70,13 +70,27 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // ✅ UPVOTE ISSUE
   upvote: (issueId: string | number, userId: number | string) =>
     apiFetch<{ message: string }>("/upvote", {
       method: "POST",
-      body: JSON.stringify({
-        issue_id: issueId,
-        user_id: userId,
-      }),
+      body: JSON.stringify({ issue_id: issueId, user_id: userId }),
+    }),
+
+  updateStatus: (issueId: string | number, status: string) =>
+    apiFetch<{ message: string }>("/update-status", {
+      method: "POST",
+      body: JSON.stringify({ issue_id: issueId, status }),
+    }),
+
+  deleteIssue: (issueId: string | number) =>
+    apiFetch<{ message: string }>("/delete-issue", {
+      method: "POST",
+      body: JSON.stringify({ issue_id: issueId }),
+    }),
+
+  assignAuthority: (issueId: string | number, authorityId: string, department?: string) =>
+    apiFetch<{ message: string }>("/assign-authority", {
+      method: "POST",
+      body: JSON.stringify({ issue_id: issueId, authority_id: authorityId, department }),
     }),
 };

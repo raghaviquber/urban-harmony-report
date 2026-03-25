@@ -50,7 +50,10 @@ export const api = {
       category: issue.category,
       location: issue.location,
       status: issue.status,
-      upvotes: issue.upvotes || 0,
+      upvotes: issue.upvotes || issue.votes || 0,
+      votes: issue.upvotes || issue.votes || 0,
+      image_url: issue.image_url || null,
+      assigned_authority_id: issue.assigned_authority_id || null,
       created_at: issue.created_at,
     }));
   },

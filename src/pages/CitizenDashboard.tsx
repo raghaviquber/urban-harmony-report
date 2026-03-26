@@ -390,7 +390,8 @@ const CitizenDashboard = () => {
                 );
               })()}
             </div>
-          )
+          )}
+
         </div>
       </main>
       <Footer />

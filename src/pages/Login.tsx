@@ -25,7 +25,12 @@ const Login = () => {
       toast.error(error.message);
     } else {
       toast.success("Logged in successfully!");
-      navigate("/select-role");
+      const selectedRole = localStorage.getItem("selectedRole") || "citizen";
+      if (selectedRole === "admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/citizen", { replace: true });
+      }
     }
   };
 

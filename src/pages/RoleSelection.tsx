@@ -1,30 +1,12 @@
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import { FileText, Users, Shield } from "lucide-react";
-import { toast } from "sonner";
-
-const ADMIN_EMAILS = [
-  "raghavi_manyam@srmap.edu.in",
-  "srithakumari_kusumanchi@srmap.edu.in",
-];
 
 const RoleSelection = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleRole = (role: "citizen" | "admin") => {
-    if (role === "admin") {
-      const email = user?.email?.toLowerCase();
-      if (!email || !ADMIN_EMAILS.includes(email)) {
-        toast.error("Access Denied — you are not authorized as admin.");
-        return;
-      }
-      localStorage.setItem("selectedRole", "admin");
-      navigate("/admin", { replace: true });
-    } else {
-      localStorage.setItem("selectedRole", "citizen");
-      navigate("/citizen", { replace: true });
-    }
+    localStorage.setItem("selectedRole", role);
+    navigate("/login");
   };
 
   return (
@@ -36,7 +18,7 @@ const RoleSelection = () => {
           </div>
           CivicReport
         </div>
-        <p className="mb-8 text-muted-foreground">Welcome back! Choose how you'd like to continue.</p>
+        <p className="mb-8 text-muted-foreground">How would you like to continue?</p>
 
         <div className="grid gap-4">
           <button

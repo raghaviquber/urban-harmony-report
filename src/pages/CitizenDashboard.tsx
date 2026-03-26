@@ -243,6 +243,10 @@ const CitizenDashboard = () => {
               className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${activeTab === "feed" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
               🏠 Issue Feed
             </button>
+            <button onClick={() => setActiveTab("leaderboard")}
+              className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${activeTab === "leaderboard" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
+              🏆 Authority Leaderboard
+            </button>
           </div>
 
           {activeTab === "feed" && (
@@ -340,6 +344,54 @@ const CitizenDashboard = () => {
               </div>
             </>
           )}
+
+          {activeTab === "leaderboard" && (
+            <div className="mt-6 rounded-xl bg-card p-6 shadow-card">
+              <div className="flex items-center gap-2 mb-6">
+                <Trophy className="h-5 w-5 text-accent" />
+                <h2 className="text-lg font-semibold text-foreground">Authority Leaderboard</h2>
+                <span className="text-sm text-muted-foreground ml-auto">Ranked by resolved issues</span>
+              </div>
+              {(() => {
+                const map = new Map<string, number>();
+                issues.forEach((i) => {
+                  if (i.assigned_authority_id && i.status === "Resolved") {
+                    const email = i.assigned_authority_id.toLowerCase();
+                    map.set(email, (map.get(email) || 0) + 1);
+                  }
+                });
+                const board = Array.from(map.entries())
+                  .map(([email, resolved]) => ({ email, resolved }))
+                  .sort((a, b) => b.resolved - a.resolved);
+
+                if (board.length === 0) {
+                  return <p className="text-center text-muted-foreground py-6">No authorities have resolved issues yet.</p>;
+                }
+                return (
+                  <div className="space-y-3">
+                    {board.map((entry, idx) => (
+                      <div key={entry.email}
+                        className="flex items-center gap-4 rounded-xl bg-muted/50 p-4 transition-all hover:-translate-y-0.5">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold text-sm ${
+                          idx === 0 ? "bg-accent text-accent-foreground" : idx === 1 ? "bg-primary/20 text-primary" : idx === 2 ? "bg-status-progress-bg text-status-progress" : "bg-muted text-muted-foreground"
+                        }`}>
+                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{entry.email}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-foreground">{entry.resolved}</p>
+                          <p className="text-xs text-muted-foreground">resolved</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
         </div>
       </main>
       <Footer />

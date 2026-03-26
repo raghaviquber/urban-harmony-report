@@ -84,7 +84,7 @@ const Landing = () => {
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
             <Link
-              to="/login"
+              to="/select-role"
               className="rounded-xl border border-primary px-5 py-2 text-sm font-semibold text-primary transition-all duration-200 hover:bg-primary hover:text-primary-foreground"
             >
               Login

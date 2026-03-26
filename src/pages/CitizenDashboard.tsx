@@ -243,6 +243,10 @@ const CitizenDashboard = () => {
               className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${activeTab === "feed" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
               🏠 Issue Feed
             </button>
+            <button onClick={() => setActiveTab("leaderboard")}
+              className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${activeTab === "leaderboard" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
+              🏆 Authority Leaderboard
+            </button>
           </div>
 
           {activeTab === "feed" && (

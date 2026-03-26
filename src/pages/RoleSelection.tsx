@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { FileText, Users, Shield } from "lucide-react";
+import { FileText, Users, Shield, Building2 } from "lucide-react";
 
 const RoleSelection = () => {
   const navigate = useNavigate();
 
-  const handleRole = (role: "citizen" | "admin") => {
+  const handleRole = (role: "citizen" | "admin" | "authority") => {
     localStorage.setItem("selectedRole", role);
     navigate("/login");
   };
@@ -31,6 +31,19 @@ const RoleSelection = () => {
             <div>
               <h3 className="text-lg font-semibold text-foreground">Continue as Citizen</h3>
               <p className="text-sm text-muted-foreground">Report issues, upvote, and track progress</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleRole("authority")}
+            className="flex items-center gap-4 rounded-xl bg-card p-6 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover text-left"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-status-progress-bg">
+              <Building2 className="h-6 w-6 text-status-progress" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Continue as Authority</h3>
+              <p className="text-sm text-muted-foreground">View assigned issues and resolve them</p>
             </div>
           </button>
 

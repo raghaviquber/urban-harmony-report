@@ -28,6 +28,8 @@ const Login = () => {
       const selectedRole = localStorage.getItem("selectedRole") || "citizen";
       if (selectedRole === "admin") {
         navigate("/admin", { replace: true });
+      } else if (selectedRole === "authority") {
+        navigate("/authority", { replace: true });
       } else {
         navigate("/citizen", { replace: true });
       }

@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import RoleSelection from "./pages/RoleSelection";
 import CitizenDashboard from "./pages/CitizenDashboard";
 import AuthorityDashboard from "./pages/AuthorityDashboard";
 import AdminDashboard from "./pages/AdminDashboard";

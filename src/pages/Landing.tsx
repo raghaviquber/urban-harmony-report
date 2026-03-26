@@ -124,7 +124,7 @@ const Landing = () => {
                 Report an Issue <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                to="/login"
+                to="/select-role"
                 className="inline-flex items-center gap-2 rounded-xl border border-primary-foreground/30 px-7 py-3.5 font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary-foreground/10"
               >
                 <BarChart3 className="h-4 w-4" /> Login / Sign Up

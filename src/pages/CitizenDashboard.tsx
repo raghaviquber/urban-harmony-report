@@ -309,6 +309,16 @@ const CitizenDashboard = () => {
                                 <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(issue.created_at).toLocaleDateString()}</span>
                               )}
                             </div>
+                            {/* Assigned authority */}
+                            <div className="mt-2 text-xs font-medium">
+                              {issue.assigned_authority_id ? (
+                                <span className="inline-flex items-center gap-1 text-primary">
+                                  <Mail className="h-3 w-3" /> Assigned to: {issue.assigned_authority_id}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">Not assigned yet</span>
+                              )}
+                            </div>
                           </div>
                           <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
                             <StatusIcon className="h-3.5 w-3.5" /> {issue.status}

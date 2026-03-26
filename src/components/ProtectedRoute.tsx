@@ -6,7 +6,10 @@ interface ProtectedRouteProps {
   allowedRoles?: ("citizen" | "authority" | "admin")[];
 }
 
-const ADMIN_EMAIL = "raghavi_manyam@srmap.edu.in";
+const ADMIN_EMAILS = [
+  "raghavi_manyam@srmap.edu.in",
+  "srithakumari_kusumanchi@srmap.edu.in",
+];
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user, loading, role } = useAuth();
@@ -21,10 +24,10 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  // Admin route: only allow the specific admin email
+  // Admin route: only allow the specific admin emails
   if (allowedRoles?.includes("admin")) {
     const userEmail = user.email?.toLowerCase();
-    if (userEmail !== ADMIN_EMAIL) {
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail)) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
           <div className="rounded-xl bg-card p-8 shadow-card text-center max-w-md">

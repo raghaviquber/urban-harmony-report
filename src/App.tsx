@@ -27,7 +27,7 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/select-role" element={<ProtectedRoute><RoleSelection /></ProtectedRoute>} />
+            <Route path="/select-role" element={<RoleSelection />} />
             <Route path="/citizen" element={<ProtectedRoute allowedRoles={["citizen"]}><CitizenDashboard /></ProtectedRoute>} />
             <Route path="/authority" element={<ProtectedRoute allowedRoles={["authority"]}><AuthorityDashboard /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />

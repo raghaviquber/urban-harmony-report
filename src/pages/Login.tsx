@@ -14,6 +14,12 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const selectedRole = localStorage.getItem("selectedRole");
+    if (!selectedRole) {
+      toast.error("Please select a role first.");
+      navigate("/select-role", { replace: true });
+      return;
+    }
     if (!email || !password) {
       toast.error("Please fill all fields.");
       return;
@@ -25,7 +31,6 @@ const Login = () => {
       toast.error(error.message);
     } else {
       toast.success("Logged in successfully!");
-      const selectedRole = localStorage.getItem("selectedRole") || "citizen";
       if (selectedRole === "admin") {
         navigate("/admin", { replace: true });
       } else if (selectedRole === "authority") {

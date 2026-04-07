@@ -62,22 +62,41 @@ const CitizenDashboard = () => {
     fetchIssues();
   }, [fetchIssues]);
 
-  useEffect(() => {
-    if (showForm && !form.location) {
-      setDetectingLocation(true);
-      navigator.geolocation?.getCurrentPosition(
+  const detectLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser.");
+      return false;
+    }
+
+    setDetectingLocation(true);
+
+    const detected = await new Promise<boolean>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setForm((f) => ({ ...f, location: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}` }));
-          setDetectingLocation(false);
+          setForm((f) => ({
+            ...f,
+            location: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`,
+          }));
+          toast.success("Location detected!");
+          resolve(true);
         },
         () => {
-          setForm((f) => ({ ...f, location: "Location unavailable" }));
-          setDetectingLocation(false);
+          toast.error("Could not detect location. Please allow location access or enter it manually.");
+          resolve(false);
         },
-        { timeout: 5000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
+    });
+
+    setDetectingLocation(false);
+    return detected;
+  }, []);
+
+  useEffect(() => {
+    if (showForm && !form.location) {
+      void detectLocation();
     }
-  }, [showForm, form.location]);
+  }, [showForm, form.location, detectLocation]);
 
   // AI category suggestion
   useEffect(() => {
@@ -108,12 +127,24 @@ const CitizenDashboard = () => {
   const doSubmit = async () => {
     setSubmitting(true);
     try {
+      let location = form.location.trim();
+
+      if (!location) {
+        const detected = await detectLocation();
+        if (!detected) {
+          setSubmitting(false);
+          return;
+        }
+        location = form.location.trim();
+      }
+
       await api.createIssue({
         title: form.title,
         description: form.description,
         category: form.category,
-        location: form.location,
+        location,
         user_id: user?.id ?? 1,
+        image: file,
       });
       toast.success("🎉 Issue reported successfully!");
       setForm({ title: "", description: "", category: "", location: "" });
@@ -223,8 +254,25 @@ const CitizenDashboard = () => {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-foreground">Location</label>
-                  <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4 shrink-0" /> {detectingLocation ? "Detecting..." : form.location || "Click to detect"}
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-1 items-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm">
+                      <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={form.location}
+                        onChange={(e) => setForm({ ...form, location: e.target.value })}
+                        placeholder="e.g. 17.4065, 78.4772 or Main Street"
+                        className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void detectLocation()}
+                      disabled={detectingLocation}
+                      className="rounded-xl border bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                    >
+                      {detectingLocation ? "..." : "Detect"}
+                    </button>
                   </div>
                 </div>
                 <div className="md:col-span-2">

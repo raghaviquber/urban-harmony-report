@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Upload, Send } from "lucide-react";
+import { MapPin, Upload, Send, LocateFixed } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";

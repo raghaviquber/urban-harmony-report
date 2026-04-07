@@ -58,17 +58,34 @@ export const api = {
     }));
   },
 
-  createIssue: (data: {
+  createIssue: async (data: {
     title: string;
     description: string;
     location: string;
     category?: string;
     user_id: number | string;
-  }) =>
-    apiFetch<{ message: string }>("/create-issue", {
+    image?: File | null;
+  }) => {
+    const formData = new FormData();
+    formData.append("title", data.title);
+    formData.append("description", data.description);
+    formData.append("location", data.location);
+    if (data.category) formData.append("category", data.category);
+    formData.append("user_id", String(data.user_id));
+    if (data.image) formData.append("image", data.image);
+
+    const res = await fetch(`${API_BASE}/create-issue`, {
       method: "POST",
-      body: JSON.stringify(data),
-    }),
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Unknown error");
+      throw new Error(`API error ${res.status}: ${text}`);
+    }
+
+    return res.json() as Promise<{ message: string }>;
+  },
 
   upvote: (issueId: string | number, userId: number | string) =>
     apiFetch<{ message: string }>("/upvote", {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Upload, Send } from "lucide-react";
+import { MapPin, Upload, Send, LocateFixed } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,22 +22,32 @@ const ReportPage = () => {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser.");
+      return;
+    }
     setDetectingLocation(true);
-    navigator.geolocation?.getCurrentPosition(
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
         setForm((f) => ({
           ...f,
           location: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`,
         }));
         setDetectingLocation(false);
+        toast.success("Location detected!");
       },
-      () => {
-        setForm((f) => ({ ...f, location: "Location unavailable" }));
+      (err) => {
+        console.warn("Geolocation error:", err);
         setDetectingLocation(false);
+        toast.error("Could not detect location. Please enter it manually or allow location access in your browser settings.");
       },
-      { timeout: 5000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  useEffect(() => {
+    detectLocation();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,6 +65,7 @@ const ReportPage = () => {
         location: form.location,
         category: form.category,
         user_id: user?.id ?? 1,
+        image: file,
       });
       toast.success("Issue reported successfully! Redirecting to dashboard...");
       setTimeout(() => navigate("/citizen"), 1200);
@@ -109,9 +120,26 @@ const ReportPage = () => {
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">Location</label>
-                <div className="flex items-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4 shrink-0" />
-                  {detectingLocation ? "Detecting location..." : form.location}
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-1 items-center gap-2 rounded-xl border bg-background px-4 py-2.5 text-sm">
+                    <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={form.location}
+                      onChange={(e) => setForm({ ...form, location: e.target.value })}
+                      placeholder="e.g. 17.4065, 78.4772 or Main Street"
+                      className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={detectLocation}
+                    disabled={detectingLocation}
+                    className="flex items-center gap-1.5 rounded-xl border bg-background px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <LocateFixed className={`h-4 w-4 ${detectingLocation ? "animate-spin" : ""}`} />
+                    {detectingLocation ? "..." : "Detect"}
+                  </button>
                 </div>
               </div>
 

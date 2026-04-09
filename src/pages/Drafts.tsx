@@ -53,16 +53,24 @@ const DraftsPage = () => {
 
     try {
       // Convert data URL to File
-      const res = await fetch(draft.imageDataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], `pothole_${draft.id}.jpg`, { type: "image/jpeg" });
+      let file: File | null = null;
+      try {
+        const parts = draft.imageDataUrl.split(",");
+        const mime = parts[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+        const bstr = atob(parts[1]);
+        const u8arr = new Uint8Array(bstr.length);
+        for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+        file = new File([u8arr], `pothole_${draft.id}.jpg`, { type: mime });
+      } catch (imgErr) {
+        console.warn("Could not convert image, submitting without it", imgErr);
+      }
 
       await api.createIssue({
         title: fd.title,
         description: fd.description,
         category: fd.category,
-        location: draft.location,
-        user_id: user?.id ?? 1,
+        location: draft.location || "Location not available",
+        user_id: user?.id ?? "1",
         image: file,
       });
 

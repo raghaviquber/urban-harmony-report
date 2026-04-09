@@ -493,6 +493,13 @@ const CitizenDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* AI Pothole Scanner Modal */}
+      {showCamera && (
+        <PotholeCamera
+          onClose={() => setShowCamera(false)}
+          onDraftSaved={() => {}}
+        />
+      )}
     </div>
   );
 };

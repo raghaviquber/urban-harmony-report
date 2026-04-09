@@ -34,6 +34,8 @@ const levelBadge: Record<string, string> = {
 
 const CitizenDashboard = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const [showCamera, setShowCamera] = useState(false);
   const [issues, setIssues] = useState<FlaskIssue[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string | number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, Search, Send, Upload, Image, User, Building2, Mail, Star, Trophy, Sparkles, AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, Search, Send, Upload, Image, User, Building2, Mail, Star, Trophy, Sparkles, AlertTriangle, Camera, FileText } from "lucide-react";
 import { toast } from "sonner";
+import PotholeCamera from "@/components/PotholeCamera";
 import { useAuth } from "@/hooks/useAuth";
 import { api, type FlaskIssue } from "@/lib/api";
 import Navbar from "@/components/Navbar";
@@ -32,6 +34,8 @@ const levelBadge: Record<string, string> = {
 
 const CitizenDashboard = () => {
   const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const [showCamera, setShowCamera] = useState(false);
   const [issues, setIssues] = useState<FlaskIssue[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string | number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -206,7 +210,19 @@ const CitizenDashboard = () => {
               <h1 className="text-3xl font-bold text-foreground">Citizen Dashboard</h1>
               <p className="mt-1 text-muted-foreground">Report issues and track community progress.</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/drafts")}
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold text-foreground transition-all hover:bg-muted"
+              >
+                <FileText className="h-4 w-4" /> Drafts
+              </button>
+              <button
+                onClick={() => setShowCamera(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow transition-all duration-200 hover:brightness-110"
+              >
+                <Camera className="h-4 w-4" /> AI Scanner
+              </button>
               <button
                 onClick={() => setShowForm(!showForm)}
                 className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow transition-all duration-200 hover:brightness-110"
@@ -477,6 +493,13 @@ const CitizenDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* AI Pothole Scanner Modal */}
+      {showCamera && (
+        <PotholeCamera
+          onClose={() => setShowCamera(false)}
+          onDraftSaved={() => {}}
+        />
+      )}
     </div>
   );
 };

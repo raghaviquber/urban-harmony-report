@@ -210,7 +210,19 @@ const CitizenDashboard = () => {
               <h1 className="text-3xl font-bold text-foreground">Citizen Dashboard</h1>
               <p className="mt-1 text-muted-foreground">Report issues and track community progress.</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/drafts")}
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold text-foreground transition-all hover:bg-muted"
+              >
+                <FileText className="h-4 w-4" /> Drafts
+              </button>
+              <button
+                onClick={() => setShowCamera(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-semibold text-primary-foreground shadow transition-all duration-200 hover:brightness-110"
+              >
+                <Camera className="h-4 w-4" /> AI Scanner
+              </button>
               <button
                 onClick={() => setShowForm(!showForm)}
                 className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow transition-all duration-200 hover:brightness-110"

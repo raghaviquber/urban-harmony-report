@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, Search, Send, Upload, Image, User, Building2, Mail, Star, Trophy, Sparkles, AlertTriangle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, Search, Send, Upload, Image, User, Building2, Mail, Star, Trophy, Sparkles, AlertTriangle, Camera, FileText } from "lucide-react";
 import { toast } from "sonner";
+import PotholeCamera from "@/components/PotholeCamera";
 import { useAuth } from "@/hooks/useAuth";
 import { api, type FlaskIssue } from "@/lib/api";
 import Navbar from "@/components/Navbar";

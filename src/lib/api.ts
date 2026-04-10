@@ -1,5 +1,6 @@
-const API_BASE = "https://urbanharmony-backend.onrender.com";
+import { supabase } from "@/integrations/supabase/client";
 
+const API_BASE = "https://urbanharmony-backend.onrender.com";
 export interface FlaskIssue {
   id: string | number;
   title: string;
@@ -91,10 +92,15 @@ export const api = {
     if (data.category) payload.category = data.category;
     if (data.image) payload.image = await fileToDataUrl(data.image);
 
-    return apiFetch<{ message: string }>("/create-issue", {
-      method: "POST",
-      body: JSON.stringify(payload),
+    const { data: response, error } = await supabase.functions.invoke("create-issue-proxy", {
+      body: payload,
     });
+
+    if (error) {
+      throw new Error(error.message || "Failed to submit issue");
+    }
+
+    return response as { message: string };
   },
 
   upvote: (issueId: string | number, userId: number | string) =>

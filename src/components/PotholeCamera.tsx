@@ -34,7 +34,6 @@ const PotholeCamera = ({ onClose, onDraftSaved }: PotholeCameraProps) => {
 
   const startCamera = useCallback(async () => {
     try {
-      // Stop existing stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
@@ -86,6 +85,64 @@ const PotholeCamera = ({ onClose, onDraftSaved }: PotholeCameraProps) => {
     return canvas.toDataURL("image/jpeg", 0.7);
   }, []);
 
+  const getCurrentLocation = useCallback(async () => {
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 0,
+        });
+      });
+
+      return `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+    } catch {
+      return "Location unavailable";
+    }
+  }, []);
+
+  const addLocationWatermark = useCallback(async (imageDataUrl: string, location: string) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return imageDataUrl;
+
+    return new Promise<string>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(imageDataUrl);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0);
+
+        const padding = Math.max(16, Math.round(img.width * 0.025));
+        const fontSize = Math.max(18, Math.round(img.width * 0.032));
+        ctx.font = `700 ${fontSize}px system-ui, -apple-system, sans-serif`;
+        ctx.textBaseline = "bottom";
+
+        const label = `📍 ${location}`;
+        const metrics = ctx.measureText(label);
+        const boxHeight = fontSize + 18;
+        const boxWidth = metrics.width + padding * 2;
+        const x = padding;
+        const y = img.height - padding;
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+        ctx.fillRect(x - 8, y - boxHeight, boxWidth + 16, boxHeight + 8);
+        ctx.fillStyle = "#22c55e";
+        ctx.fillText(label, x, y - 10);
+
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.onerror = () => resolve(imageDataUrl);
+      img.src = imageDataUrl;
+    });
+  }, []);
+
   const analyzeFrame = useCallback(async () => {
     if (analyzing || detected) return;
 
@@ -107,7 +164,6 @@ const PotholeCamera = ({ onClose, onDraftSaved }: PotholeCameraProps) => {
       }
 
       if (data?.detected && data.confidence >= 60) {
-        // Pothole detected! Auto-capture
         setDetected(true);
         setCapturedImage(imageData);
         setDetectionResult({ description: data.description, confidence: data.confidence });
@@ -121,7 +177,6 @@ const PotholeCamera = ({ onClose, onDraftSaved }: PotholeCameraProps) => {
     setAnalyzing(false);
   }, [analyzing, detected, captureFrame, stopCamera]);
 
-  // Auto-scan every 3 seconds when camera is active
   useEffect(() => {
     if (cameraActive && !detected) {
       intervalRef.current = setInterval(() => {
@@ -137,46 +192,33 @@ const PotholeCamera = ({ onClose, onDraftSaved }: PotholeCameraProps) => {
     }
   }, [cameraActive, detected, analyzeFrame]);
 
-  // Start camera on mount
   useEffect(() => {
     startCamera();
     return () => stopCamera();
-  }, []);
+  }, [startCamera, stopCamera]);
 
-  // Restart camera when facingMode changes
   useEffect(() => {
     if (cameraActive) {
       startCamera();
     }
-  }, [facingMode]);
+  }, [facingMode, cameraActive, startCamera]);
 
   const saveDraft = async () => {
     if (!capturedImage || !detectionResult) return;
     setSaving(true);
 
-    let location = "";
-    try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 5000,
-        });
-      });
-      location = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
-    } catch {
-      location = "Location unavailable";
-    }
+    const location = await getCurrentLocation();
+    const imageWithWatermark = await addLocationWatermark(capturedImage, location);
 
     const draft: DraftReport = {
       id: Date.now().toString(),
-      imageDataUrl: capturedImage,
+      imageDataUrl: imageWithWatermark,
       detectionDescription: detectionResult.description,
       confidence: detectionResult.confidence,
       location,
       timestamp: new Date().toISOString(),
     };
 
-    // Save to localStorage
     const existing = JSON.parse(localStorage.getItem("pothole_drafts") || "[]");
     existing.unshift(draft);
     localStorage.setItem("pothole_drafts", JSON.stringify(existing));
@@ -295,7 +337,7 @@ const PotholeCamera = ({ onClose, onDraftSaved }: PotholeCameraProps) => {
             <div className="flex gap-3">
               <button onClick={saveDraft} disabled={saving}
                 className="flex-1 rounded-xl bg-accent px-4 py-2.5 font-semibold text-accent-foreground transition-all hover:brightness-110 disabled:opacity-50">
-                {saving ? "Saving..." : "💾 Save as Draft"}
+                {saving ? "Saving with location..." : "💾 Save as Draft"}
               </button>
               <button onClick={() => { setDetected(false); setCapturedImage(null); setDetectionResult(null); startCamera(); }}
                 className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted">

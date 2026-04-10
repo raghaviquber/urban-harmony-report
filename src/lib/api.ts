@@ -34,6 +34,21 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Failed to read image file."));
+    };
+    reader.onerror = () => reject(new Error("Failed to read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 // -----------------------------
 // API METHODS
 // -----------------------------
@@ -66,25 +81,20 @@ export const api = {
     user_id: number | string;
     image?: File | null;
   }) => {
-    const formData = new FormData();
-    formData.append("title", data.title);
-    formData.append("description", data.description);
-    formData.append("location", data.location);
-    if (data.category) formData.append("category", data.category);
-    formData.append("user_id", String(data.user_id));
-    if (data.image) formData.append("image", data.image);
+    const payload: Record<string, string> = {
+      title: data.title,
+      description: data.description,
+      location: data.location,
+      user_id: String(data.user_id),
+    };
 
-    const res = await fetch(`${API_BASE}/create-issue`, {
+    if (data.category) payload.category = data.category;
+    if (data.image) payload.image = await fileToDataUrl(data.image);
+
+    return apiFetch<{ message: string }>("/create-issue", {
       method: "POST",
-      body: formData,
+      body: JSON.stringify(payload),
     });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "Unknown error");
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-
-    return res.json() as Promise<{ message: string }>;
   },
 
   upvote: (issueId: string | number, userId: number | string) =>

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import PotholeCamera from "@/components/PotholeCamera";
 import { useAuth } from "@/hooks/useAuth";
 import { api, type FlaskIssue } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import IssueMap from "@/components/IssueMap";

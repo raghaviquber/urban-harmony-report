@@ -291,7 +291,7 @@ const AdminDashboard = () => {
 
                     {issue.assigned_authority_id && (
                       <p className="mt-2 text-xs text-primary font-medium">
-                        Assigned: {issue.assigned_authority_id}
+                        Assigned: {getAssignedName(issue.assigned_authority_id)}
                       </p>
                     )}
 

@@ -319,17 +319,23 @@ const AdminDashboard = () => {
                         <Trash2 className="h-3.5 w-3.5" /> Delete
                       </button>
                       <div className="ml-auto">
-                        <input
-                          type="text"
-                          placeholder="Assign (email/dept)"
-                          className="w-36 rounded-xl border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              handleAssign(issue.id, (e.target as HTMLInputElement).value);
-                              (e.target as HTMLInputElement).value = "";
-                            }
-                          }}
-                        />
+                        <select
+                          value={
+                            getAssignedName(issue.assigned_authority_id) &&
+                            AUTHORITIES.find(
+                              (a) => authorityMap[a.email]?.user_id === issue.assigned_authority_id
+                            )?.email || ""
+                          }
+                          onChange={(e) => handleAssign(issue.id, e.target.value)}
+                          className="rounded-xl border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary"
+                        >
+                          <option value="">Assign to…</option>
+                          {AUTHORITIES.map((a) => (
+                            <option key={a.email} value={a.email}>
+                              {a.name} ({a.email})
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>

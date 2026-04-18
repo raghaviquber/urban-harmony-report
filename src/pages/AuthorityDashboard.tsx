@@ -41,8 +41,25 @@ const AuthorityDashboard = () => {
   const fetchIssues = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.getIssues();
-      setAllIssues(data);
+      const { data, error } = await supabase
+        .from("issues")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const mapped: FlaskIssue[] = (data || []).map((i) => ({
+        id: i.id,
+        title: i.title,
+        description: i.description,
+        category: i.category,
+        location: i.location,
+        status: i.status,
+        upvotes: i.votes || 0,
+        votes: i.votes || 0,
+        image_url: i.image_url || undefined,
+        assigned_authority_id: i.assigned_authority_id,
+        created_at: i.created_at,
+      }));
+      setAllIssues(mapped);
     } catch (err) {
       console.error("Failed to fetch issues:", err);
       toast.error("Failed to load issues.");

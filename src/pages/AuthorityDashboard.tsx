@@ -103,11 +103,15 @@ const AuthorityDashboard = () => {
 
   const confirmAction = async () => {
     if (!resolveTarget) return;
-    try {
-      await api.updateStatus(resolveTarget, resolveAction);
+    const { error } = await supabase
+      .from("issues")
+      .update({ status: resolveAction })
+      .eq("id", String(resolveTarget));
+    if (error) {
+      console.error("Status update failed:", error);
+      toast.error(`Failed to update status: ${error.message}`);
+    } else {
       toast.success(`Issue marked as ${resolveAction}.`);
-    } catch {
-      toast.error("Failed to update status.");
     }
     setResolveTarget(null);
     fetchIssues();

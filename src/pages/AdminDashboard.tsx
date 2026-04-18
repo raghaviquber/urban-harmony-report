@@ -85,16 +85,55 @@ const AdminDashboard = () => {
     setDeleteTarget(null);
   };
 
-  // Assign authority
-  const handleAssign = async (issueId: string | number, authorityInput: string) => {
-    if (!authorityInput) return;
-    try {
-      await api.assignAuthority(issueId, authorityInput);
-      toast.success("Authority assigned!");
-      fetchIssues();
-    } catch {
-      toast.error("Failed to assign authority.");
+  // Authority list (hard-coded emails → resolved to UUIDs from profiles)
+  const AUTHORITIES = [
+    { email: "ajay@gmail.com", name: "Ajay" },
+    { email: "swapna@gmail.com", name: "Swapna" },
+  ];
+  const [authorityMap, setAuthorityMap] = useState<Record<string, { user_id: string; name: string }>>({});
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, email, display_name")
+        .in("email", AUTHORITIES.map((a) => a.email));
+      const map: Record<string, { user_id: string; name: string }> = {};
+      data?.forEach((p) => {
+        if (p.email) map[p.email.toLowerCase()] = { user_id: p.user_id, name: p.display_name || p.email };
+      });
+      setAuthorityMap(map);
+    })();
+  }, []);
+
+  // Assign authority directly via Supabase
+  const handleAssign = async (issueId: string | number, authorityEmail: string) => {
+    if (!authorityEmail) return;
+    const auth = authorityMap[authorityEmail.toLowerCase()];
+    if (!auth) {
+      toast.error("Authority not found. Make sure they have registered.");
+      return;
     }
+    const { error } = await supabase
+      .from("issues")
+      .update({ assigned_authority_id: auth.user_id })
+      .eq("id", String(issueId));
+    if (error) {
+      console.error("Assign failed:", error);
+      toast.error(`Failed to assign: ${error.message}`);
+      return;
+    }
+    toast.success(`Assigned to ${auth.name}!`);
+    setIssues((prev) =>
+      prev.map((i) => (i.id === issueId ? { ...i, assigned_authority_id: auth.user_id } : i))
+    );
+  };
+
+  // Resolve UUID → friendly name for display
+  const getAssignedName = (uid?: string | null) => {
+    if (!uid) return null;
+    const entry = Object.values(authorityMap).find((a) => a.user_id === uid);
+    return entry?.name ?? uid;
   };
 
   // Filtering & sorting

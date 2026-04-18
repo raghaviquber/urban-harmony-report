@@ -3,6 +3,7 @@ import { ThumbsUp, Clock, Wrench, CheckCircle2, MapPin, Tag, TrendingUp, Search,
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { api, type FlaskIssue } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -17,17 +18,13 @@ const statusConfig: Record<string, { bg: string; text: string; icon: typeof Cloc
 };
 
 interface AuthorityStats {
+  user_id: string;
   email: string;
   name: string;
   resolved: number;
 }
 
-const AUTHORITY_NAMES: Record<string, string> = {
-  "ajay@gmail.com": "Ajay",
-  "swapna@gmail.com": "Swapna",
-};
-
-const getAuthorityName = (email: string) => AUTHORITY_NAMES[email.toLowerCase()] || email;
+const AUTHORITY_EMAILS = ["ajay@gmail.com", "swapna@gmail.com"];
 
 const AuthorityDashboard = () => {
   const { user } = useAuth();
@@ -37,6 +34,9 @@ const AuthorityDashboard = () => {
   const [resolveAction, setResolveAction] = useState<"In Progress" | "Resolved">("Resolved");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"assigned" | "leaderboard">("assigned");
+  const [authorityProfiles, setAuthorityProfiles] = useState<
+    Record<string, { email: string; name: string }>
+  >({});
 
   const fetchIssues = useCallback(async () => {
     try {
@@ -53,10 +53,26 @@ const AuthorityDashboard = () => {
 
   useEffect(() => { fetchIssues(); }, [fetchIssues]);
 
-  // Filter issues assigned to the current authority
+  // Load authority profiles (user_id → name/email)
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, email, display_name")
+        .in("email", AUTHORITY_EMAILS);
+      const map: Record<string, { email: string; name: string }> = {};
+      data?.forEach((p) => {
+        map[p.user_id] = { email: p.email || "", name: p.display_name || p.email || "" };
+      });
+      setAuthorityProfiles(map);
+    })();
+  }, []);
+
+  // Filter issues assigned to the current authority by user.id (UUID)
+  const myUserId = user?.id ?? "";
   const myEmail = user?.email?.toLowerCase() ?? "";
   const assignedIssues = allIssues.filter(
-    (i) => i.assigned_authority_id?.toLowerCase() === myEmail
+    (i) => i.assigned_authority_id === myUserId
   );
 
   const stats = {
@@ -67,17 +83,21 @@ const AuthorityDashboard = () => {
   };
   const pct = (n: number) => (stats.total === 0 ? 0 : Math.round((n / stats.total) * 100));
 
-  // Build authority leaderboard from ALL issues
+  // Build authority leaderboard from ALL resolved issues, grouped by assigned user_id
   const leaderboard: AuthorityStats[] = (() => {
     const map = new Map<string, number>();
     allIssues.forEach((i) => {
       if (i.assigned_authority_id && i.status === "Resolved") {
-        const email = i.assigned_authority_id.toLowerCase();
-        map.set(email, (map.get(email) || 0) + 1);
+        map.set(i.assigned_authority_id, (map.get(i.assigned_authority_id) || 0) + 1);
       }
     });
     return Array.from(map.entries())
-      .map(([email, resolved]) => ({ email, name: getAuthorityName(email), resolved }))
+      .map(([user_id, resolved]) => ({
+        user_id,
+        email: authorityProfiles[user_id]?.email || "Unknown",
+        name: authorityProfiles[user_id]?.name || "Unknown Authority",
+        resolved,
+      }))
       .sort((a, b) => b.resolved - a.resolved);
   })();
 

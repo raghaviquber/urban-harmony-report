@@ -18,8 +18,16 @@ const statusConfig: Record<string, { bg: string; text: string; icon: typeof Cloc
 
 interface AuthorityStats {
   email: string;
+  name: string;
   resolved: number;
 }
+
+const AUTHORITY_NAMES: Record<string, string> = {
+  "ajay@gmail.com": "Ajay",
+  "swapna@gmail.com": "Swapna",
+};
+
+const getAuthorityName = (email: string) => AUTHORITY_NAMES[email.toLowerCase()] || email;
 
 const AuthorityDashboard = () => {
   const { user } = useAuth();
@@ -69,7 +77,7 @@ const AuthorityDashboard = () => {
       }
     });
     return Array.from(map.entries())
-      .map(([email, resolved]) => ({ email, resolved }))
+      .map(([email, resolved]) => ({ email, name: getAuthorityName(email), resolved }))
       .sort((a, b) => b.resolved - a.resolved);
   })();
 
@@ -256,8 +264,9 @@ const AuthorityDashboard = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate">
-                          {entry.email} {entry.email === myEmail && <span className="text-xs text-primary">(You)</span>}
+                          {entry.name} {entry.email === myEmail && <span className="text-xs text-primary">(You)</span>}
                         </p>
+                        <p className="text-xs text-muted-foreground truncate">{entry.email}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-foreground">{entry.resolved}</p>

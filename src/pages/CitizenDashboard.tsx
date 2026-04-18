@@ -52,6 +52,18 @@ const CitizenDashboard = () => {
   const [duplicates, setDuplicates] = useState<FlaskIssue[]>([]);
   const [showDuplicateAlert, setShowDuplicateAlert] = useState(false);
   const [activeTab, setActiveTab] = useState<"feed" | "leaderboard">("feed");
+  const [citizenLeaderboard, setCitizenLeaderboard] = useState<Array<{ user_id: string; display_name: string; civic_score: number; civic_level: string }>>([]);
+
+  const fetchLeaderboard = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("user_id, display_name, civic_score, civic_level")
+      .order("civic_score", { ascending: false })
+      .limit(50);
+    if (!error && data) setCitizenLeaderboard(data);
+  }, []);
+
+  useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
 
   const fetchIssues = useCallback(async () => {
     try {
@@ -310,7 +322,7 @@ const CitizenDashboard = () => {
             </button>
             <button onClick={() => setActiveTab("leaderboard")}
               className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${activeTab === "leaderboard" ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}>
-              🏆 Authority Leaderboard
+              🏆 Citizen Leaderboard
             </button>
           </div>
 
@@ -339,8 +351,8 @@ const CitizenDashboard = () => {
                 </select>
               </div>
 
-              {/* Map */}
-              {filtered.length > 0 && (
+              {/* Map - hidden when AI scanner camera is open to avoid blocking the view */}
+              {filtered.length > 0 && !showCamera && (
                 <div className="mt-8">
                   <h2 className="mb-4 text-xl font-semibold text-foreground">📍 Issue Locations</h2>
                   <IssueMap issues={filtered.map((i) => ({ id: String(i.id), title: i.title, location: i.location, status: i.status, category: i.category }))} />
@@ -414,46 +426,40 @@ const CitizenDashboard = () => {
             <div className="mt-6 rounded-xl bg-card p-6 shadow-card">
               <div className="flex items-center gap-2 mb-6">
                 <Trophy className="h-5 w-5 text-accent" />
-                <h2 className="text-lg font-semibold text-foreground">Authority Leaderboard</h2>
-                <span className="text-sm text-muted-foreground ml-auto">Ranked by resolved issues</span>
+                <h2 className="text-lg font-semibold text-foreground">Citizen Leaderboard</h2>
+                <span className="text-sm text-muted-foreground ml-auto">Ranked by civic score</span>
               </div>
-              {(() => {
-                const map = new Map<string, number>();
-                issues.forEach((i) => {
-                  if (i.assigned_authority_id && i.status === "Resolved") {
-                    const email = i.assigned_authority_id.toLowerCase();
-                    map.set(email, (map.get(email) || 0) + 1);
-                  }
-                });
-                const board = Array.from(map.entries())
-                  .map(([email, resolved]) => ({ email, resolved }))
-                  .sort((a, b) => b.resolved - a.resolved);
-
-                if (board.length === 0) {
-                  return <p className="text-center text-muted-foreground py-6">No authorities have resolved issues yet.</p>;
-                }
-                return (
-                  <div className="space-y-3">
-                    {board.map((entry, idx) => (
-                      <div key={entry.email}
-                        className="flex items-center gap-4 rounded-xl bg-muted/50 p-4 transition-all hover:-translate-y-0.5">
+              {citizenLeaderboard.length === 0 ? (
+                <p className="text-center text-muted-foreground py-6">No citizens on the board yet. Report an issue to earn points!</p>
+              ) : (
+                <div className="space-y-3">
+                  {citizenLeaderboard.map((entry, idx) => {
+                    const isMe = entry.user_id === user?.id;
+                    return (
+                      <div key={entry.user_id}
+                        className={`flex items-center gap-4 rounded-xl p-4 transition-all hover:-translate-y-0.5 ${
+                          isMe ? "bg-primary/10 ring-2 ring-primary/30" : "bg-muted/50"
+                        }`}>
                         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold text-sm ${
                           idx === 0 ? "bg-accent text-accent-foreground" : idx === 1 ? "bg-primary/20 text-primary" : idx === 2 ? "bg-status-progress-bg text-status-progress" : "bg-muted text-muted-foreground"
                         }`}>
                           {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{entry.email}</p>
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {entry.display_name || "Citizen"} {isMe && <span className="text-xs text-primary">(You)</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">{entry.civic_level}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold text-foreground">{entry.resolved}</p>
-                          <p className="text-xs text-muted-foreground">resolved</p>
+                          <p className="text-lg font-bold text-foreground">{entry.civic_score}</p>
+                          <p className="text-xs text-muted-foreground">points</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                );
-              })()}
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

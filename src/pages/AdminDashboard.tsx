@@ -88,18 +88,24 @@ const AdminDashboard = () => {
     }
   };
 
-  // Delete
+  // Delete (directly from Supabase — also removes related votes)
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    setIssues((prev) => prev.filter((i) => i.id !== deleteTarget));
-    try {
-      await api.deleteIssue(deleteTarget);
-      toast.success("Issue deleted successfully.");
-    } catch {
-      toast.error("Failed to delete issue.");
-      fetchIssues();
-    }
+    const target = deleteTarget;
     setDeleteTarget(null);
+    const prevIssues = issues;
+    setIssues((prev) => prev.filter((i) => i.id !== target));
+    try {
+      // Remove related votes first (no FK cascade defined)
+      await supabase.from("issue_votes").delete().eq("issue_id", String(target));
+      const { error } = await supabase.from("issues").delete().eq("id", String(target));
+      if (error) throw error;
+      toast.success("Issue deleted successfully.");
+    } catch (err: any) {
+      console.error("Delete failed:", err);
+      toast.error(`Failed to delete: ${err?.message || "Unknown error"}`);
+      setIssues(prevIssues);
+    }
   };
 
   // Authority list (hard-coded emails → resolved to UUIDs from profiles)
